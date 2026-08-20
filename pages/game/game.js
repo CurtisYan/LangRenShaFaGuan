@@ -9,7 +9,7 @@ Page({
     witchActions: ['不用药', '使用解药', '使用毒药'], witchActionIndex: 0,
     inspection: '', wolfMembers: '', seerNumber: '', witchNumber: '', guardNumber: '', lonelyGirlNumber: '', wolfAlive: false, guardAlive: false, seerAlive: false, witchAlive: false, lonelyGirlAlive: false, hasGuard: false, hasLonelyGirl: false,
     dayState: null, sheriffCandidates: [], sheriffSignupSeats: [], dayVoters: [], voteTargets: [], voteTargetLabels: [], selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0,
-    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, backStepLabel: '', confirmationPulse: '', confirmationHint: ''
+    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, confirmationPulse: '', rippleX: 0, rippleY: 0
   },
 
   onShow() { this.refresh() },
@@ -36,7 +36,7 @@ Page({
     const latestStep = stepHistory[stepHistory.length - 1]
     const voteIndex = Math.min(this.data.selectedVoteHistoryIndex, Math.max(0, voteHistory.length - 1))
     const selectedVoteRound = voteHistory[voteIndex] || null
-    const selectedVoteRows = selectedVoteRound ? Object.keys(selectedVoteRound.votes || {}).sort((a, b) => Number(a) - Number(b)).map(voter => ({ voter, target: selectedVoteRound.votes[voter] ? `${selectedVoteRound.votes[voter]}号` : '弃票', sheriff: Number(voter) === selectedVoteRound.sheriffSeat })) : []
+    const selectedVoteRows = selectedVoteRound ? this.groupVoteRecords(selectedVoteRound.eligibleVoters || Object.keys(selectedVoteRound.votes || {}), selectedVoteRound.votes || {}, selectedVoteRound.sheriffSeat) : []
     this.setData({
       game, board, aliveSeats, aliveLabels: aliveSeats.map(seat => `${seat.number}号`), selectedTargetIndex: 0, selectedTarget: aliveSeats[0] ? aliveSeats[0].number : null,
       wolfTargetIndex: indexFor(game.night.wolfTarget), guardTargetIndex: indexFor(game.night.guardTarget), seerTargetIndex: indexFor(game.night.seerTarget), witchTargetIndex: indexFor(game.night.witchTarget), lonelyGirlTargetIndex, lonelyGirlTargets, lonelyGirlTargetLabels: lonelyGirlTargets.map(seat => `${seat.number}号`), witchActionIndex: ['none', 'save', 'poison'].indexOf(game.night.witchAction),
@@ -49,7 +49,7 @@ Page({
       pendingSkillCanTarget: deathPrompt ? engine.canUseDeathSkill(game, deathPrompt) : false,
       choosingSkillTarget: deathPrompt && this.data.choosingSkillTarget && this.data.pendingSkill && this.data.pendingSkill.number === deathPrompt.seatNumber,
       skillTargetLabels: aliveSeats.map(seat => `${seat.number}号`), selectedSkillTargetIndex: 0,
-      seatCards, voteHistory, selectedVoteHistoryIndex: voteIndex, selectedVoteRound, selectedVoteRows, canGoBack: Boolean(latestStep), backStepLabel: latestStep ? latestStep.label : '当前是本局起点',
+      seatCards, voteHistory, selectedVoteHistoryIndex: voteIndex, selectedVoteRound, selectedVoteRows, canGoBack: Boolean(latestStep),
       ...dayView
     })
   },
@@ -61,12 +61,12 @@ Page({
     }
     const isSheriffVote = state.stage === 'sheriffVote'
     const isExileVote = state.stage === 'exileVote'
-    const voters = isSheriffVote ? aliveSeats.filter(seat => state.sheriffPk ? !state.sheriffCandidates.includes(seat.number) : !state.sheriffInitialCandidates.includes(seat.number) && !state.sheriffWithdrawn.includes(seat.number)) : isExileVote && state.exileMode === 'individual' ? aliveSeats : []
+    const voters = isSheriffVote ? aliveSeats.filter(seat => state.sheriffPk ? !state.sheriffCandidates.includes(seat.number) : !state.sheriffInitialCandidates.includes(seat.number) && !state.sheriffWithdrawn.includes(seat.number)) : isExileVote && state.exileMode === 'individual' ? aliveSeats.filter(seat => !state.exilePk || !state.exileTieCandidates.includes(seat.number)) : []
     const targets = isSheriffVote ? state.sheriffCandidates : isExileVote && state.exilePk ? state.exileTieCandidates : aliveSeats.map(seat => seat.number)
     const targetLabels = targets.map(number => `${number}号`).concat(isSheriffVote || isExileVote ? ['弃票'] : [])
     const voteMap = isSheriffVote ? state.sheriffVotes : state.exileVotes
     const tally = this.tallyVotes(voteMap, game.sheriffSeat)
-    const voteRecords = voters.map(seat => ({ number: seat.number, target: Object.prototype.hasOwnProperty.call(voteMap, seat.number) ? (voteMap[seat.number] ? `${voteMap[seat.number]}号` : '弃票') : '弃票', sheriff: seat.number === game.sheriffSeat }))
+    const voteRecords = this.groupVoteRecords(voters, voteMap, game.sheriffSeat)
     const selfExposeCandidates = aliveSeats.filter(seat => roles[seat.roleId].canSelfExpose && (board.dayRules.selfExposeRoleIds || []).includes(seat.roleId)).map(seat => ({ number: seat.number, name: seat.roleName }))
     const sheriffSignupSeats = aliveSeats.map(seat => ({ number: seat.number, selected: state.sheriffCandidates.includes(seat.number) }))
     const sheriffWithdrawalSeats = state.sheriffCandidates.map(number => ({ number, armed: this.data.confirmationPulse === `withdraw-${number}` }))
@@ -81,37 +81,69 @@ Page({
     }, {})
   },
   tallyRows(tally) { return Object.keys(tally).sort((a, b) => Number(a) - Number(b)).map(number => ({ number, value: tally[number] })) },
+  groupVoteRecords(voters, votes, sheriffSeat) {
+    const groups = {}
+    voters.forEach(voter => {
+      const number = Number(voter.number || voter)
+      const hasVote = Object.prototype.hasOwnProperty.call(votes, number)
+      const target = hasVote && votes[number] ? `${votes[number]}号` : '弃票'
+      if (!groups[target]) groups[target] = []
+      groups[target].push(`${number === sheriffSeat ? '⬡' : ''}${number}号`)
+    })
+    return Object.keys(groups).sort((left, right) => {
+      if (left === '弃票') return 1
+      if (right === '弃票') return -1
+      return Number(left.replace('号', '')) - Number(right.replace('号', ''))
+    }).map(target => ({ target, voters: groups[target].join(' ') }))
+  },
   nightDeathText(game) { const deaths = (game.latestNightDeathNumbers || []).map(number => `${number}号`); return deaths.length ? `昨夜${deaths.join('、')}出局。` : '昨夜是平安夜。' },
   saveAndRefresh(game) { getApp().saveGame(game); this.refresh() },
   checkpoint(game, label) { engine.checkpointStep(game, label) },
-  armLongPress(key, hint) {
-    if (this._confirmationTimer) clearTimeout(this._confirmationTimer)
-    this.setData({ confirmationPulse: '', confirmationHint: '' }, () => {
-      this.setData({ confirmationPulse: key, confirmationHint: hint })
-      this._confirmationTimer = setTimeout(() => this.setData({ confirmationPulse: '', confirmationHint: '' }), 1100)
+  startHold(event) {
+    const key = event.currentTarget.dataset.holdKey
+    if (key === 'back' && !this.data.canGoBack) return
+    this._holdKey = key
+    this._holdReady = false
+    const touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0])
+    const beginPulse = point => this.setData({ confirmationPulse: '', rippleX: point.x, rippleY: point.y }, () => {
+      this.setData({ confirmationPulse: key })
     })
+    const selector = event.currentTarget.dataset.holdId
+    if (!touch || !selector || !wx.createSelectorQuery) return beginPulse({ x: 32, y: 32 })
+    wx.createSelectorQuery().select(`#${selector}`).boundingClientRect(rect => {
+      if (!rect || this._holdKey !== key) return
+      beginPulse({ x: Math.max(0, Math.min(rect.width, touch.clientX - rect.left)), y: Math.max(0, Math.min(rect.height, touch.clientY - rect.top)) })
+    }).exec()
   },
-  clearLongPressHint() {
-    if (this._confirmationTimer) clearTimeout(this._confirmationTimer)
-    this.setData({ confirmationPulse: '', confirmationHint: '' })
+  completeHold(event) {
+    const key = event.currentTarget.dataset.holdKey
+    if (this._holdKey === key) this._holdReady = true
   },
-  previewBackStep() {
-    if (!this.data.canGoBack) return this.toast('当前已经是本局起点')
-    this.armLongPress('back', `长按确认：返回“${this.data.backStepLabel}”之前`)
+  endHold(event) {
+    const key = event.currentTarget.dataset.holdKey
+    const ready = this._holdKey === key && this._holdReady
+    if (ready) {
+      this.clearHold()
+      if (key === 'back') return this.goBackStep()
+      return this.withdrawSheriffCandidate(Number(event.currentTarget.dataset.number))
+    }
+    this.clearHold()
+  },
+  cancelHold() { this.clearHold() },
+  clearHold() {
+    this._holdKey = null
+    this._holdReady = false
+    this.setData({ confirmationPulse: '' })
   },
   goBackStep() {
     const restored = engine.restoreStep(this.data.game)
-    if (!restored) return this.toast('当前已经是本局起点')
-    this.clearLongPressHint()
+    if (!restored) return
+    this.clearHold()
     this.setData({ choosingSkillTarget: false, simpleVoteCount: '', seatInfo: null })
     getApp().saveGame(restored.game)
     this.refresh()
-    wx.showToast({ title: `已返回：${restored.label}`, icon: 'none', duration: 1800 })
   },
-  previewWithdraw(event) {
-    const number = Number(event.currentTarget.dataset.number)
-    this.armLongPress(`withdraw-${number}`, `长按确认：${number}号退水`)
-  },
+  openBoardDetail() { wx.navigateTo({ url: `/pages/board-detail/board-detail?boardId=${this.data.game.boardId}` }) },
   electSheriff(game, number, reason) {
     game.sheriffSeat = number
     game.sheriffElectionDone = true
@@ -164,10 +196,10 @@ Page({
     this.saveAndRefresh(game)
   },
   beginSheriffSpeech() { const game = this.data.game; if (!game.dayState.sheriffCandidates.length) return this.toast('请先记录上警玩家'); this.checkpoint(game, '确认上警名单'); game.dayState.stage = 'sheriffSpeech'; engine.addLog(game, `第${game.day}天：上警玩家为${game.dayState.sheriffCandidates.map(n => `${n}号`).join('、')}`); this.saveAndRefresh(game) },
-  withdrawSheriffCandidate(event) {
-    const game = this.data.game; const number = Number(event.currentTarget.dataset.number); const state = game.dayState
+  withdrawSheriffCandidate(numberOrEvent) {
+    const game = this.data.game; const number = Number(typeof numberOrEvent === 'number' ? numberOrEvent : numberOrEvent.currentTarget.dataset.number); const state = game.dayState
     if (!state.sheriffCandidates.includes(number)) return
-    this.clearLongPressHint()
+    this.clearHold()
     this.checkpoint(game, `${number}号退水`)
     state.sheriffCandidates = state.sheriffCandidates.filter(item => item !== number)
     if (!state.sheriffWithdrawn.includes(number)) state.sheriffWithdrawn.push(number)
@@ -184,7 +216,9 @@ Page({
   },
   selectDayVoter(event) {
     const index = Number(event.currentTarget.dataset.index)
-    if (this.data.dayState.stage !== 'sheriffVote') return this.setData({ selectedVoterIndex: index })
+    const state = this.data.dayState
+    const supportsMultiSelect = state.stage === 'sheriffVote' || (state.stage === 'exileVote' && state.exileMode === 'individual')
+    if (!supportsMultiSelect) return this.setData({ selectedVoterIndex: index })
     const selected = this.data.selectedVoterIndices.slice(); const found = selected.indexOf(index)
     if (found >= 0) selected.splice(found, 1); else selected.push(index)
     const voters = this.data.dayVoters.slice(); voters[index] = { ...voters[index], selected: !voters[index].selected }
@@ -194,7 +228,8 @@ Page({
   recordVote() {
     const state = this.data.game.dayState
     const target = this.data.voteTargets[this.data.selectedVoteTargetIndex] || null
-    const voters = state.stage === 'sheriffVote' ? this.data.selectedVoterIndices.map(index => this.data.dayVoters[index]) : [this.data.dayVoters[this.data.selectedVoterIndex]]
+    const supportsMultiSelect = state.stage === 'sheriffVote' || (state.stage === 'exileVote' && state.exileMode === 'individual')
+    const voters = supportsMultiSelect ? this.data.selectedVoterIndices.map(index => this.data.dayVoters[index]) : [this.data.dayVoters[this.data.selectedVoterIndex]]
     if (!voters.length || voters.some(item => !item)) return this.toast('请选择投票玩家')
     this.checkpoint(this.data.game, state.stage === 'sheriffVote' ? '记录警长投票' : '记录放逐投票')
     const map = state.stage === 'sheriffVote' ? state.sheriffVotes : state.exileVotes
@@ -202,12 +237,13 @@ Page({
     this.saveAndRefresh(this.data.game)
   },
   resolveSheriffVote() {
-    const game = this.data.game; const tally = this.tallyVotes(game.dayState.sheriffVotes, null); const rows = this.tallyRows(tally)
+    const game = this.data.game; const state = game.dayState; const tally = this.tallyVotes(state.sheriffVotes, null); const rows = this.tallyRows(tally)
     if (!rows.length) return this.toast('请至少记录一票')
-    this.checkpoint(game, game.dayState.sheriffPk ? '统计警长PK票' : '统计警长票')
+    const eligibleVoters = game.seats.filter(seat => seat.alive && (state.sheriffPk ? !state.sheriffCandidates.includes(seat.number) : !state.sheriffInitialCandidates.includes(seat.number) && !state.sheriffWithdrawn.includes(seat.number))).map(seat => seat.number)
+    this.checkpoint(game, state.sheriffPk ? '统计警长PK票' : '统计警长票')
     const max = Math.max(...rows.map(row => row.value)); const winners = rows.filter(row => row.value === max).map(row => Number(row.number))
-    engine.addVoteHistory(game, { label: game.dayState.sheriffPk ? '警长PK投票' : '警长投票', votes: game.dayState.sheriffVotes, tally: this.tallyRows(tally), sheriffSeat: null })
-    if (winners.length > 1) { game.dayState.stage = 'sheriffTie'; game.dayState.sheriffCandidates = winners; game.dayState.sheriffPk = true; game.dayState.message = `警长投票平票：${winners.map(n => `${n}号`).join('、')}`; return this.saveAndRefresh(game) }
+    engine.addVoteHistory(game, { label: state.sheriffPk ? '警长PK投票' : '警长投票', votes: state.sheriffVotes, eligibleVoters, tally: this.tallyRows(tally), sheriffSeat: null })
+    if (winners.length > 1) { state.stage = 'sheriffTie'; state.sheriffCandidates = winners; state.sheriffPk = true; state.message = `警长投票平票：${winners.map(n => `${n}号`).join('、')}`; return this.saveAndRefresh(game) }
     this.electSheriff(game, winners[0], '警长投票胜出')
   },
   restartSheriffVote() { const game = this.data.game; this.checkpoint(game, '开始警长PK发言'); game.dayState.sheriffVotes = {}; game.dayState.stage = 'sheriffSpeech'; game.dayState.message = ''; this.saveAndRefresh(game) },
@@ -223,7 +259,8 @@ Page({
     if (!rows.length) return this.toast('请先记录票数')
     this.checkpoint(game, state.exilePk ? '统计放逐PK票' : '统计放逐票')
     const max = Math.max(...rows.map(row => row.value)); const winners = rows.filter(row => row.value === max).map(row => Number(row.number))
-    engine.addVoteHistory(game, { label: state.exilePk ? '放逐PK投票' : '放逐投票', votes: state.exileMode === 'individual' ? state.exileVotes : {}, tally: this.tallyRows(tally), sheriffSeat: game.sheriffSeat })
+    const eligibleVoters = state.exileMode === 'individual' ? game.seats.filter(seat => seat.alive && (!state.exilePk || !state.exileTieCandidates.includes(seat.number))).map(seat => seat.number) : []
+    engine.addVoteHistory(game, { label: state.exilePk ? '放逐PK投票' : '放逐投票', votes: state.exileMode === 'individual' ? state.exileVotes : {}, eligibleVoters, tally: this.tallyRows(tally), sheriffSeat: game.sheriffSeat })
     if (winners.length > 1) { state.stage = 'exileTie'; state.exileTieCandidates = winners; state.exilePk = true; state.message = `放逐投票平票：${winners.map(n => `${n}号`).join('、')}`; return this.saveAndRefresh(game) }
     engine.applyDayEvent(game, 'exile', winners[0]); state.stage = 'exileDone'; this.saveAndRefresh(game)
   },
