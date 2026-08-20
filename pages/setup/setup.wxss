@@ -1,0 +1,17 @@
+.summary-card { margin-top: 20rpx; }
+.summary-tags { display: flex; flex-wrap: wrap; gap: 12rpx; }
+.summary-tag { padding: 8rpx 16rpx; border-radius: 999rpx; background: #e0e7ff; color: #1d4ed8; font-size: 27rpx; }
+.mode-switch { display: flex; margin: 28rpx 0 18rpx; overflow: hidden; border: 1rpx solid #2563eb; border-radius: 12rpx; }
+.mode-item { flex: 1; padding: 18rpx 8rpx; text-align: center; color: #1d4ed8; }
+.mode-item.active { color: #fff; background: #2563eb; font-weight: 700; }
+.instruction { margin-bottom: 22rpx; font-size: 27rpx; }
+.camp-title { margin: 28rpx 0 14rpx; font-size: 34rpx; font-weight: 700; }
+.camp-title.wolf { color: #be123c; }
+.camp-title.good { color: #1d4ed8; }
+.role-grid, .number-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12rpx; }
+.role-card, .number-card { min-height: 112rpx; padding: 14rpx 10rpx; border: 1rpx solid #d1d5db; border-radius: 12rpx; background: #fff; text-align: center; font-size: 27rpx; }
+.role-card.selected { border: 3rpx solid #2563eb; background: #eff6ff; }
+.role-numbers, .number-role { margin-top: 8rpx; color: #6b7280; font-size: 23rpx; line-height: 1.35; }
+.seat-title { margin: 30rpx 0 14rpx; }
+.number-card.selected-role { border-color: #2563eb; background: #eff6ff; }
+.number-card.selected-seat { border: 3rpx solid #2563eb; background: #dbeafe; }

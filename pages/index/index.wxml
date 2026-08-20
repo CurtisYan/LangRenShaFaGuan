@@ -1,0 +1,23 @@
+<view class="page">
+  <view class="title">面杀法官助手</view>
+  <view class="muted">只有法官需要拿手机。数据仅保存在本机。</view>
+
+  <view wx:if="{{currentGame}}" class="card current">
+    <view class="subtitle">进行中的对局</view>
+    <view>{{currentGame.boardName}} · 第{{currentGame.day}}{{currentGame.phase === 'night' ? '夜' : '天'}}</view>
+    <view wx:if="{{currentGame.winner}}" class="success">{{currentGame.winner}}已获胜</view>
+    <view class="button-row">
+      <button class="primary" bindtap="continueGame">继续主持</button>
+      <button bindtap="resetGame">清除</button>
+    </view>
+  </view>
+
+  <view class="subtitle section-title">选择板子</view>
+  <view wx:for="{{boards}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="chooseBoard">
+    <view class="subtitle">{{item.name}}</view>
+    <view>{{item.summary}}</view>
+    <view class="muted">{{item.playerCount}}人 · 点击配置身份</view>
+  </view>
+
+  <button bindtap="openRules">查看板子规则与角色说明</button>
+</view>

@@ -1,0 +1,6 @@
+.rule { margin: 14rpx 0; line-height: 1.6; }
+.tag { display: inline-block; margin-left: 10rpx; padding: 4rpx 14rpx; border-radius: 999rpx; font-size: 23rpx; font-weight: 500; vertical-align: middle; }
+.wolf-tag { color: #fff; background: #dc2626; }
+.villager-tag { color: #fff; background: #2563eb; }
+.god-tag { color: #713f12; background: #facc15; }
+.third-tag { color: #fff; background: #7c3aed; }

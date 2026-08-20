@@ -1,0 +1,4 @@
+{
+  "desc": "面杀法官助手",
+  "rules": [{ "action": "allow", "page": "*" }]
+}
