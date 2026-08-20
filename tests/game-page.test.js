@@ -67,9 +67,44 @@ page.recordVote.call(page)
 assert.equal(Object.keys(app.globalData.game.dayState.exileVotes).length, 2, '逐票记录应一次写入多名投票玩家')
 
 page._holdKey = 'back'
-page._holdReady = false
+let backTriggerCount = 0
+const originalGoBackStep = page.goBackStep
+page.goBackStep = () => { backTriggerCount += 1 }
 page.completeHold.call(page, { currentTarget: { dataset: { holdKey: 'back' } } })
-assert.equal(page._holdReady, true, '扩散动画完成后才应允许触发长按操作')
+assert.equal(backTriggerCount, 1, '返回按钮放大完成时应立即执行返回')
+page.goBackStep = originalGoBackStep
+
+let withdrawnNumber = null
+const originalWithdraw = page.withdrawSheriffCandidate
+page.withdrawSheriffCandidate = number => { withdrawnNumber = number }
+page.startHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
+assert.equal(page.data.confirmationPulse, 'withdraw-2', '按下退水号码牌后应立即进入放大状态')
+page.endHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
+assert.equal(page.data.confirmationPulse, '', '未按满时松手应取消退水并恢复号码牌')
+assert.equal(withdrawnNumber, null, '短按退水号码牌不应误触发退水')
+page.startHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
+page.completeHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
+assert.equal(withdrawnNumber, 2, '退水按钮放大完成时应立即执行退水')
+page.withdrawSheriffCandidate = originalWithdraw
+
+const nightGame = engine.makeGame(board, roles)
+app.globalData.game = nightGame
+page.refresh.call(page)
+assert.equal(page.data.canGoBack, false, '第一夜刚开局且没有回退记录时不应显示返回按钮')
+page.updateNightTarget.call(page, { currentTarget: { dataset: { field: 'wolfTarget' } }, detail: { value: 0 } })
+assert.equal(app.globalData.game.stepHistory.length, 1, '记录夜间行动前应建立回退点')
+assert.equal(page.data.canGoBack, true, '记录夜间行动后，黑夜返回按钮应可用')
+const nightTarget = app.globalData.game.night.wolfTarget
+assert.equal(Boolean(nightTarget), true, '夜间行动应已记录目标')
+page.finishNight.call(page)
+assert.equal(app.globalData.game.phase, 'day', '夜间结算后应进入白天')
+page.goBackStep.call(page)
+assert.equal(app.globalData.game.phase, 'night', '从白天返回后应恢复黑夜页面')
+assert.equal(page.data.canGoBack, true, '返回黑夜后仍应保留更早的夜间回退点')
+assert.equal(app.globalData.game.night.wolfTarget, nightTarget, '从白天返回黑夜时应恢复已记录的夜间目标')
+page.goBackStep.call(page)
+assert.equal(app.globalData.game.night.wolfTarget, null, '黑夜返回应恢复记录目标前的状态')
+assert.equal(page.data.canGoBack, false, '恢复第一夜初始状态后应再次隐藏返回按钮')
 page.openBoardDetail.call(page)
 assert.equal(navigations[0], '/pages/board-detail/board-detail?boardId=standard12', '顶部板子名应跳转至对应板子说明')
 

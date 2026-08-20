@@ -9,7 +9,7 @@ Page({
     witchActions: ['不用药', '使用解药', '使用毒药'], witchActionIndex: 0,
     inspection: '', wolfMembers: '', seerNumber: '', witchNumber: '', guardNumber: '', lonelyGirlNumber: '', wolfAlive: false, guardAlive: false, seerAlive: false, witchAlive: false, lonelyGirlAlive: false, hasGuard: false, hasLonelyGirl: false,
     dayState: null, sheriffCandidates: [], sheriffSignupSeats: [], dayVoters: [], voteTargets: [], voteTargetLabels: [], selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0,
-    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, confirmationPulse: '', rippleX: 0, rippleY: 0
+    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, confirmationPulse: ''
   },
 
   onShow() { this.refresh() },
@@ -69,7 +69,7 @@ Page({
     const voteRecords = this.groupVoteRecords(voters, voteMap, game.sheriffSeat)
     const selfExposeCandidates = aliveSeats.filter(seat => roles[seat.roleId].canSelfExpose && (board.dayRules.selfExposeRoleIds || []).includes(seat.roleId)).map(seat => ({ number: seat.number, name: seat.roleName }))
     const sheriffSignupSeats = aliveSeats.map(seat => ({ number: seat.number, selected: state.sheriffCandidates.includes(seat.number) }))
-    const sheriffWithdrawalSeats = state.sheriffCandidates.map(number => ({ number, armed: this.data.confirmationPulse === `withdraw-${number}` }))
+    const sheriffWithdrawalSeats = state.sheriffCandidates.map(number => ({ number }))
     return { dayState: state, dayStageLabel: dayStageLabels[state.stage] || '白天流程', sheriffCandidates: state.sheriffCandidates.map(number => `${number}号`), sheriffCandidateText: state.sheriffCandidates.map(number => `${number}号`).join('、'), sheriffSignupSeats, sheriffWithdrawalSeats, dayVoters: voters.map(seat => ({ ...seat, selected: false })), voteTargets: targets.concat([null]), voteTargetLabels: targetLabels, voteRecords, voteTally: this.tallyRows(tally), sheriffWeight: board.dayRules.sheriffVoteWeight, sheriffSeat: game.sheriffSeat, selfExposeCandidates, pendingWolfKingClaw: game.pendingWolfKingClaw, selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0, dayMessage: state.message || '', nightDeathText: this.nightDeathText(game) }
   },
 
@@ -103,36 +103,25 @@ Page({
     const key = event.currentTarget.dataset.holdKey
     if (key === 'back' && !this.data.canGoBack) return
     this._holdKey = key
-    this._holdReady = false
-    const touch = (event.touches && event.touches[0]) || (event.changedTouches && event.changedTouches[0])
-    const beginPulse = point => this.setData({ confirmationPulse: '', rippleX: point.x, rippleY: point.y }, () => {
+    this.setData({ confirmationPulse: '' }, () => {
       this.setData({ confirmationPulse: key })
     })
-    const selector = event.currentTarget.dataset.holdId
-    if (!touch || !selector || !wx.createSelectorQuery) return beginPulse({ x: 32, y: 32 })
-    wx.createSelectorQuery().select(`#${selector}`).boundingClientRect(rect => {
-      if (!rect || this._holdKey !== key) return
-      beginPulse({ x: Math.max(0, Math.min(rect.width, touch.clientX - rect.left)), y: Math.max(0, Math.min(rect.height, touch.clientY - rect.top)) })
-    }).exec()
   },
   completeHold(event) {
     const key = event.currentTarget.dataset.holdKey
-    if (this._holdKey === key) this._holdReady = true
+    if (this._holdKey !== key) return
+    const number = Number(event.currentTarget.dataset.number)
+    this.clearHold()
+    if (key === 'back') return this.goBackStep()
+    return this.withdrawSheriffCandidate(number)
   },
   endHold(event) {
     const key = event.currentTarget.dataset.holdKey
-    const ready = this._holdKey === key && this._holdReady
-    if (ready) {
-      this.clearHold()
-      if (key === 'back') return this.goBackStep()
-      return this.withdrawSheriffCandidate(Number(event.currentTarget.dataset.number))
-    }
-    this.clearHold()
+    if (this._holdKey === key) this.clearHold()
   },
   cancelHold() { this.clearHold() },
   clearHold() {
     this._holdKey = null
-    this._holdReady = false
     this.setData({ confirmationPulse: '' })
   },
   goBackStep() {
@@ -167,6 +156,9 @@ Page({
     const field = event.currentTarget.dataset.field; const target = this.data.aliveSeats[Number(event.detail.value)]; if (!target) return
     const game = this.data.game
     if (field === 'guardTarget' && game.resources.lastGuardTarget === target.number) return this.toast('守卫不能连续两晚守护同一名玩家')
+    if (game.night[field] === target.number) return
+    const labels = { wolfTarget: '记录狼人刀口', guardTarget: '记录守卫目标', seerTarget: '记录预言家查验', witchTarget: '记录女巫毒药目标' }
+    this.checkpoint(game, labels[field] || '记录夜间行动')
     game.night[field] = target.number
     if (field === 'seerTarget') { const result = roles[target.roleId].camp === 'wolf' ? 'wolf' : 'good'; target.marks.goldWater = result === 'good' }
     this.saveAndRefresh(game)
@@ -175,6 +167,8 @@ Page({
     const action = ['none', 'save', 'poison'][Number(event.detail.value)]; const game = this.data.game
     if (action === 'save') { if (!game.resources.antidote) return this.toast('解药已经使用'); if (!game.night.wolfTarget) return this.toast('请先记录狼人刀口'); const witch = game.seats.find(item => item.roleId === 'witch'); if (witch && witch.number === game.night.wolfTarget) return this.toast('本板女巫全程不能自救') }
     if (action === 'poison' && !game.resources.poison) return this.toast('毒药已经使用')
+    if (game.night.witchAction === action) return
+    this.checkpoint(game, '记录女巫行动')
     game.night.witchAction = action; if (action !== 'poison') game.night.witchTarget = null; this.saveAndRefresh(game)
   },
   finishNight() { const game = this.data.game; this.checkpoint(game, `第${game.day}夜行动结束`); if (game.night.witchAction === 'save') game.resources.antidote = false; if (game.night.witchAction === 'poison') game.resources.poison = false; engine.settleNight(game); this.saveAndRefresh(game) },
