@@ -1,7 +1,21 @@
 const { roles } = require('../data/roles')
+const MAX_STEP_HISTORY = 60
 
 function makeGame(board, seatRoles) {
   const now = Date.now()
+  const seats = seatRoles.map((roleId, index) => {
+    const role = roles[roleId]
+    if (!role) throw new Error(`未定义的身份：${roleId}`)
+    return {
+      number: index + 1,
+      roleId,
+      roleName: role.name,
+      alive: true,
+      foolRevealed: false,
+      deathCause: '',
+      marks: { goldWater: false, silverWater: false }
+    }
+  })
   return {
     id: String(now),
     boardId: board.id,
@@ -15,19 +29,14 @@ function makeGame(board, seatRoles) {
     sheriffElectionInterrupted: false,
     sheriffElectionSnapshot: null,
     selfExposeCount: 0,
+    stepHistory: [],
     dayState: null,
     voteHistory: [],
     nightStep: 0,
-    seats: seatRoles.map((roleId, index) => ({
-      number: index + 1,
-      roleId,
-      roleName: roles[roleId].name,
-      alive: true,
-      foolRevealed: false,
-      deathCause: '',
-      marks: { goldWater: false, silverWater: false }
-    })),
+    seats,
     resources: { antidote: true, poison: true, lastGuardTarget: null, wolfKingClawUsed: false },
+    special: { lonelyGirlTarget: null },
+    selfExposeRoleIds: (board.dayRules.selfExposeRoleIds || []).slice(),
     pendingWolfKingClaw: false,
     pendingDeathSkills: [],
     pendingLastWords: [],
@@ -44,8 +53,48 @@ function roleAlive(game, roleId) {
   return game.seats.some(seat => seat.alive && seat.roleId === roleId)
 }
 
+function setLonelyGirlTarget(game, targetNumber) {
+  if (game.day !== 1 || !roleAlive(game, 'lonelyGirl')) throw new Error('当前不能记录孤独少女的崇拜对象')
+  if (!game.special) game.special = { lonelyGirlTarget: null }
+  if (game.special.lonelyGirlTarget) throw new Error('孤独少女的崇拜对象已经确定')
+  const girl = game.seats.find(seat => seat.roleId === 'lonelyGirl')
+  const target = game.seats.find(seat => seat.number === Number(targetNumber) && seat.alive)
+  if (!target || target.number === girl.number) throw new Error('请为孤独少女选择其他存活玩家')
+  game.special.lonelyGirlTarget = target.number
+  addLog(game, `孤独少女首夜崇拜${target.number}号`)
+  return target
+}
+
+function ensureLonelyGirlTarget(game) {
+  if (game.day !== 1 || !roleAlive(game, 'lonelyGirl')) return null
+  if (game.special && game.special.lonelyGirlTarget) return game.special.lonelyGirlTarget
+  const girl = game.seats.find(seat => seat.roleId === 'lonelyGirl')
+  const candidates = game.seats.filter(seat => seat.alive && seat.number !== girl.number)
+  if (!candidates.length) return null
+  const target = candidates[Math.floor(Math.random() * candidates.length)]
+  setLonelyGirlTarget(game, target.number)
+  return target.number
+}
+
 function addLog(game, text) {
   game.logs.unshift({ time: Date.now(), text })
+}
+
+function checkpointStep(game, label) {
+  const history = Array.isArray(game.stepHistory) ? game.stepHistory.slice() : []
+  const snapshot = JSON.parse(JSON.stringify(game))
+  delete snapshot.stepHistory
+  history.push({ id: `${Date.now()}-${history.length}`, label: label || '上一步', snapshot })
+  game.stepHistory = history.slice(-MAX_STEP_HISTORY)
+}
+
+function restoreStep(game) {
+  const history = Array.isArray(game.stepHistory) ? game.stepHistory : []
+  if (!history.length) return null
+  const entry = history[history.length - 1]
+  const restored = entry.snapshot
+  restored.stepHistory = history.slice(0, -1)
+  return { game: restored, label: entry.label }
 }
 
 function kill(game, number, cause) {
@@ -102,11 +151,13 @@ function resolveDeathSkill(game, seatNumber, activate, targetNumber) {
 
 function settleNight(game) {
   const deaths = []
+  ensureLonelyGirlTarget(game)
   if (game.night.guardTarget && game.night.guardTarget === game.resources.lastGuardTarget) throw new Error('守卫不能连续两晚守护同一名玩家')
   const guarded = game.night.guardTarget === game.night.wolfTarget
   const guardedAndSaved = guarded && game.night.witchAction === 'save'
   if (game.night.wolfTarget && ((!guarded && game.night.witchAction !== 'save') || guardedAndSaved)) {
-    const seat = kill(game, game.night.wolfTarget, '狼人袭击')
+    const target = game.seats.find(seat => seat.number === game.night.wolfTarget)
+    const seat = target && target.roleId !== 'cursedFox' ? kill(game, game.night.wolfTarget, '狼人袭击') : null
     if (seat) deaths.push(seat)
   }
   if (game.night.witchAction === 'save' && game.night.wolfTarget) {
@@ -115,7 +166,13 @@ function settleNight(game) {
   }
   if (game.night.guardTarget) game.resources.lastGuardTarget = game.night.guardTarget
   if (game.night.witchAction === 'poison' && game.night.witchTarget) {
-    const seat = kill(game, game.night.witchTarget, '女巫毒药')
+    const target = game.seats.find(seat => seat.number === game.night.witchTarget)
+    const seat = target && target.roleId !== 'cursedFox' ? kill(game, game.night.witchTarget, '女巫毒药') : null
+    if (seat) deaths.push(seat)
+  }
+  const inspected = game.night.seerTarget && game.seats.find(seat => seat.number === game.night.seerTarget)
+  if (inspected && inspected.alive && inspected.roleId === 'cursedFox') {
+    const seat = kill(game, inspected.number, '预言家查验')
     if (seat) deaths.push(seat)
   }
   const text = deaths.length ? deaths.map(item => `${item.number}号`).join('、') + '出局' : '平安夜'
@@ -165,6 +222,9 @@ function applyDayEvent(game, type, number) {
     kill(game, number, '猎人开枪')
     addLog(game, `第${game.day}天：猎人开枪带走${number}号`)
   } else if (type === 'selfExpose') {
+    const seat = game.seats.find(item => item.number === Number(number))
+    if (!seat || !seat.alive) throw new Error('请选择仍存活的玩家')
+    if (!(game.selfExposeRoleIds || []).includes(seat.roleId)) throw new Error('该身份不能自曝')
     kill(game, number, '狼人自曝')
     addLog(game, `第${game.day}天：${number}号狼人自曝`)
   } else if (type === 'wolfKingClaw') {
@@ -201,8 +261,11 @@ function evaluateWinner(game) {
   const wolves = alive.filter(seat => roles[seat.roleId].camp === 'wolf').length
   const villagers = alive.filter(seat => roles[seat.roleId].group === '平民').length
   const gods = alive.filter(seat => roles[seat.roleId].group === '神职').length
+  const cursedFoxAlive = alive.some(seat => seat.roleId === 'cursedFox')
+  const lonelyGirlAlive = alive.some(seat => seat.roleId === 'lonelyGirl')
   let winner = null
-  if (villagers === 0 || gods === 0) winner = '狼人阵营'
+  if (game.boardId === 'brotherFoxCrow12' && cursedFoxAlive && (villagers === 0 || gods === 0 || wolves === 0)) winner = '咒狐'
+  else if ((villagers === 0 || gods === 0) && !lonelyGirlAlive) winner = '狼人阵营'
   else if (wolves === 0) winner = '好人阵营'
   if (winner) {
     game.status = 'ended'
@@ -212,4 +275,4 @@ function evaluateWinner(game) {
   return winner
 }
 
-module.exports = { makeGame, roleAlive, settleNight, applyDayEvent, nextNight, evaluateWinner, addLog, createDayState, canUseDeathSkill, resolveDeathSkill, addVoteHistory, shouldHaveLastWords }
+module.exports = { makeGame, roleAlive, setLonelyGirlTarget, settleNight, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, addVoteHistory, shouldHaveLastWords }

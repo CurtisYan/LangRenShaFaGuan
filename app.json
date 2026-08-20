@@ -3,13 +3,17 @@
     "pages/index/index",
     "pages/setup/setup",
     "pages/game/game",
-    "pages/rules/rules"
+    "pages/rules/rules",
+    "pages/board-list/board-list",
+    "pages/board-detail/board-detail",
+    "pages/role-list/role-list",
+    "pages/role-detail/role-detail"
   ],
   "window": {
     "navigationBarTitleText": "面杀法官助手",
-    "navigationBarBackgroundColor": "#1f2937",
+    "navigationBarBackgroundColor": "#27332f",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#f3f4f6"
+    "backgroundColor": "#f5f5f1"
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json"

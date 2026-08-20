@@ -1,0 +1,16 @@
+.detail-page { padding-top: 48rpx; }
+.detail-hero { margin: 0 4rpx 42rpx; }
+.detail-summary { color: #657068; font-size: 27rpx; line-height: 1.6; }
+.detail-section { margin-top: 26rpx; padding-top: 24rpx; border-top: 1rpx solid #d9dad2; }
+.section-label { margin-bottom: 16rpx; color: #7a8178; font-size: 22rpx; font-weight: 600; letter-spacing: .1em; }
+.setting-row { display: flex; justify-content: space-between; gap: 30rpx; padding: 13rpx 0; border-bottom: 1rpx solid #ecece5; color: #667068; font-size: 26rpx; }
+.setting-row text:last-child { color: #2e3932; text-align: right; }
+.flow-line { display: flex; flex-wrap: wrap; gap: 9rpx; }
+.flow-chip { padding: 8rpx 12rpx; border-radius: 999rpx; color: #4f6759; background: #edf4ee; font-size: 22rpx; }
+.rule-line { display: flex; gap: 12rpx; margin: 11rpx 0; color: #5e675f; font-size: 25rpx; line-height: 1.58; }
+.rule-line text:first-child { color: #91a096; }
+.document-section { margin-top: 34rpx; }.document-paragraph { margin: 13rpx 0; color: #596259; font-size: 26rpx; line-height: 1.7; white-space: pre-wrap; }
+.role-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10rpx; }
+.role-card { display: flex; align-items: flex-start; justify-content: space-between; min-height: 88rpx; padding: 15rpx; border: 1rpx solid #dedfd8; border-radius: 14rpx; background: #fffefa; }
+.role-card.wolf { border-color: #ead7d4; background: #fcf6f5; }.role-card.villager { border-color: #d7e2e7; background: #f5f9fa; }.role-card.god { border-color: #e6dfce; background: #fdfbf5; }.role-card.third { border-color: #e1d8ea; background: #faf8fd; }
+.role-name { color: #354038; font-size: 27rpx; font-weight: 600; }.role-card > text { color: #6c756c; font-size: 27rpx; }

@@ -1,6 +1,10 @@
-.rule { margin: 14rpx 0; line-height: 1.6; }
-.tag { display: inline-block; margin-left: 10rpx; padding: 4rpx 14rpx; border-radius: 999rpx; font-size: 23rpx; font-weight: 500; vertical-align: middle; }
-.wolf-tag { color: #fff; background: #dc2626; }
-.villager-tag { color: #fff; background: #2563eb; }
-.god-tag { color: #713f12; background: #facc15; }
-.third-tag { color: #fff; background: #7c3aed; }
+.rules-page { padding-top: 52rpx; }
+.rules-hero { margin: 0 5rpx 50rpx; }
+.library-card { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18rpx; padding: 28rpx 29rpx; border: 1rpx solid #dedfd8; border-radius: 22rpx; background: #fffefa; }
+.board-library { border-color: #cddbd2; background: #f2f7f3; }
+.role-library { border-color: #d9d5c8; background: #fbf8ef; }
+.library-meta { margin-bottom: 9rpx; color: #718078; font-size: 22rpx; font-weight: 600; letter-spacing: .1em; }
+.role-library .library-meta { color: #89764d; }
+.library-title { color: #2c3932; font-size: 34rpx; font-weight: 600; letter-spacing: -.02em; }
+.library-enter { color: #4e695a; font-size: 42rpx; font-weight: 300; line-height: 1; }
+.role-library .library-enter { color: #7a6637; }

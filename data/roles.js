@@ -19,6 +19,7 @@ const roles = {
   demonHunter: { id: 'demonHunter', name: '猎魔人', camp: 'good', group: '神职' },
   crow: { id: 'crow', name: '乌鸦', camp: 'good', group: '神职' },
   dreamer: { id: 'dreamer', name: '摄梦人', camp: 'good', group: '神职' },
+  lonelyGirl: { id: 'lonelyGirl', name: '孤独少女', camp: 'good', group: '神职' },
   cursedFox: { id: 'cursedFox', name: '咒狐', camp: 'third', group: '第三方' }
 }
 

@@ -1,0 +1,10 @@
+.catalog-page { padding-top: 50rpx; }
+.catalog-hero { margin: 0 5rpx 42rpx; }
+.catalog-hero .muted { font-size: 26rpx; line-height: 1.6; }
+.catalog-list { border-top: 1rpx solid #d9dad2; }
+.catalog-row { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; min-height: 132rpx; padding: 20rpx 3rpx; border-bottom: 1rpx solid #d9dad2; }
+.catalog-main { min-width: 0; flex: 1; }
+.catalog-main .subtitle { margin-bottom: 7rpx; font-size: 30rpx; }
+.catalog-summary { overflow: hidden; color: #747a72; font-size: 24rpx; text-overflow: ellipsis; white-space: nowrap; }
+.catalog-side { display: flex; align-items: center; gap: 15rpx; color: #788078; font-size: 21rpx; }
+.catalog-side text:last-child { color: #64766b; font-size: 39rpx; font-weight: 300; }

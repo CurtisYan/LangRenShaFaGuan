@@ -1,23 +1,32 @@
-<view class="page">
-  <view class="title">面杀法官助手</view>
-  <view class="muted">只有法官需要拿手机。数据仅保存在本机。</view>
+<view class="page home-page">
+  <view class="home-hero">
+    <view class="eyebrow">桌面狼人杀 · 法官专用</view>
+    <view class="title">面杀法官助手</view>
+    <view class="home-intro">主持词、流程与对局记录，只留给桌前的法官。</view>
+  </view>
 
-  <view wx:if="{{currentGame}}" class="card current">
-    <view class="subtitle">进行中的对局</view>
-    <view>{{currentGame.boardName}} · 第{{currentGame.day}}{{currentGame.phase === 'night' ? '夜' : '天'}}</view>
+  <view wx:if="{{currentGame}}" class="resume-panel">
+    <view class="resume-topline"><text>进行中的对局</text><text class="resume-phase">第{{currentGame.day}}{{currentGame.phase === 'night' ? '夜' : '天'}}</text></view>
+    <view class="resume-board">{{currentGame.boardName}}</view>
     <view wx:if="{{currentGame.winner}}" class="success">{{currentGame.winner}}已获胜</view>
-    <view class="button-row">
+    <view class="resume-actions">
       <button class="primary" bindtap="continueGame">继续主持</button>
-      <button bindtap="resetGame">清除</button>
+      <button class="quiet-button" bindtap="resetGame">结束本局</button>
     </view>
   </view>
 
-  <view class="subtitle section-title">选择板子</view>
-  <view wx:for="{{boards}}" wx:key="id" class="card" data-id="{{item.id}}" bindtap="chooseBoard">
-    <view class="subtitle">{{item.name}}</view>
-    <view>{{item.summary}}</view>
-    <view class="muted">{{item.playerCount}}人 · 点击配置身份</view>
+  <view class="section-heading">
+    <view><view class="eyebrow">开始新的一局</view><view class="subtitle">选择板子</view></view>
+    <view class="board-count">{{boards.length}} 个板子</view>
   </view>
+  <scroll-view scroll-y class="board-scroll" enhanced show-scrollbar="false">
+    <view class="board-list">
+      <view wx:for="{{boards}}" wx:key="id" class="board-row" data-id="{{item.id}}" bindtap="chooseBoard">
+        <view class="board-main"><view class="board-name">{{item.name}}</view><view class="board-summary">{{item.summary}}</view></view>
+        <view class="board-side"><view>{{item.playerCount}} 人</view><view class="board-enter">配置身份　›</view></view>
+      </view>
+    </view>
+  </scroll-view>
 
-  <button bindtap="openRules">查看板子规则与角色说明</button>
+  <view class="rule-entry" bindtap="openRules"><view><view class="eyebrow">资料库</view><view class="subtitle">板子规则与角色说明</view></view><view class="rule-entry-side"><text>打开</text><text>›</text></view></view>
 </view>

@@ -76,14 +76,16 @@ Page({
     const selectedSeat = seats.find(item => item.number === selectedSeatNumber)
     const makeRole = roleId => {
       const numbers = seats.filter(item => item.roleId === roleId).map(item => item.number)
-      return { id: roleId, name: roles[roleId].name, capacity: board.roleCounts[roleId], count: numbers.length, assignedText: numbers.length ? numbers.map(number => `${number}号`).join('、') : '未选号码', selected: roleId === selectedRoleId, selectedForSeat: selectedSeat && selectedSeat.roleId === roleId }
+      return { id: roleId, name: roles[roleId].name, tone: roles[roleId].camp, capacity: board.roleCounts[roleId], count: numbers.length, assignedText: numbers.length ? numbers.map(number => `${number}号`).join('、') : '未选号码', selected: roleId === selectedRoleId, selectedForSeat: selectedSeat && selectedSeat.roleId === roleId }
     }
     const roleGroups = [
       { name: '狼人阵营', tone: 'wolf', items: roleIds.filter(id => roles[id].camp === 'wolf').map(makeRole) },
-      { name: '好人阵营', tone: 'good', items: roleIds.filter(id => roles[id].camp === 'good').map(makeRole) }
-    ]
-    const numberCards = seats.map(item => ({ ...item, selected: item.number === selectedSeatNumber, roleLabel: item.roleId ? item.roleName : '未分配' }))
-    this.setData({ roleGroups, summaryItems: roleIds.map(makeRole).filter(item => item.count > 0), assignedCount: seats.filter(item => item.roleId).length, numberCards })
+      { name: '好人阵营', tone: 'good', items: roleIds.filter(id => roles[id].camp === 'good').map(makeRole) },
+      { name: '第三方阵营', tone: 'third', items: roleIds.filter(id => roles[id].camp === 'third').map(makeRole) }
+    ].filter(group => group.items.length)
+    const numberCards = seats.map(item => ({ ...item, selected: item.number === selectedSeatNumber, isAssigned: Boolean(item.roleId), isSelectedRole: item.roleId === selectedRoleId, roleLabel: item.roleId ? item.roleName : '未分配' }))
+    const assignedCount = seats.filter(item => item.roleId).length
+    this.setData({ roleGroups, summaryItems: roleIds.map(makeRole).filter(item => item.count > 0), assignedCount, progressPercent: Math.round(assignedCount / board.playerCount * 100), numberCards })
   },
 
   saveDraft() {
