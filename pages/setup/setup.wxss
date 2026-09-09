@@ -12,13 +12,13 @@
 .summary-tag.villager { color: var(--color-villager); background: var(--color-villager-soft); }
 .summary-tag.god { color: var(--color-god); background: var(--color-god-soft); }
 .summary-tag.third { color: var(--color-third); background: var(--color-third-soft); }
-.blind-deal-card { box-sizing: border-box; margin-top: 28rpx; padding: 27rpx 27rpx 25rpx; border: 1rpx solid #b9c8bf; border-left: 5rpx solid var(--color-accent-muted); border-radius: var(--radius-card); background: #f2f6f2; }
-.blind-card-top { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
-.blind-card-kicker { margin-bottom: 8rpx; color: var(--color-accent); font-size: 22rpx; font-weight: 600; letter-spacing: .1em; }
-.blind-card-title { color: var(--color-ink); font-size: 34rpx; font-weight: 600; }
-.blind-card-arrow { color: var(--color-accent); font-size: 46rpx; line-height: 1; }
-.blind-card-copy { margin-top: 18rpx; color: var(--color-ink-secondary); font-size: 24rpx; line-height: 1.68; }
-.blind-card-note { margin-top: 17rpx; padding-top: 15rpx; border-top: 1rpx solid #d7e0da; color: var(--color-ink-muted); font-size: 22rpx; line-height: 1.5; }
+.first-night-identity-card { box-sizing: border-box; margin-top: 28rpx; padding: 27rpx 27rpx 25rpx; border: 1rpx solid #b9c8bf; border-left: 5rpx solid var(--color-accent-muted); border-radius: var(--radius-card); background: #f2f6f2; }
+.identity-entry-top { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
+.identity-entry-kicker { margin-bottom: 8rpx; color: var(--color-accent); font-size: 22rpx; font-weight: 600; letter-spacing: .1em; }
+.identity-entry-title { color: var(--color-ink); font-size: 34rpx; font-weight: 600; }
+.identity-entry-arrow { color: var(--color-accent); font-size: 46rpx; line-height: 1; }
+.identity-entry-copy { margin-top: 18rpx; color: var(--color-ink-secondary); font-size: 24rpx; line-height: 1.68; }
+.identity-entry-note { margin-top: 17rpx; padding-top: 15rpx; border-top: 1rpx solid #d7e0da; color: var(--color-ink-muted); font-size: 22rpx; line-height: 1.5; }
 .setup-divider { display: flex; align-items: center; gap: 18rpx; margin: 30rpx 0 0; color: var(--color-ink-muted); font-size: 22rpx; }
 .setup-divider::before, .setup-divider::after { content: ''; flex: 1; height: 1rpx; background: var(--color-border); }
 .mode-switch { margin: 30rpx 0 22rpx; }

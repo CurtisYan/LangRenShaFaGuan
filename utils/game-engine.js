@@ -1,5 +1,5 @@
 const { roles } = require('../data/roles')
-const { nightActions } = require('../data/night-actions')
+const { nightActionDefinitions } = require('../data/night-actions')
 const MAX_STEP_HISTORY = 60
 
 const CAUSE_LABELS = {
@@ -72,18 +72,18 @@ function seatForRole(game, roleId) { return game.seats.find(seat => seat.roleId 
 function aliveSeatForRole(game, roleId) { return game.seats.find(seat => seat.alive && seat.roleId === roleId) || null }
 function actionValue(game, actionId) { ensureGameState(game); return game.night.actions[actionId] || {} }
 
-function registrationRoleOrder(board) {
+function identityRoleOrder(board) {
   const roleIds = Object.keys(board.roleCounts)
   const ordered = []
   const add = roleId => {
     if (roleIds.includes(roleId) && roleId !== 'villager' && !ordered.includes(roleId)) ordered.push(roleId)
   }
-  ;(board.nightActions || []).forEach(actionId => {
+  ;(board.nightSequence || []).forEach(actionId => {
     if (actionId === 'wolves') {
       roleIds.filter(roleId => roles[roleId] && roles[roleId].camp === 'wolf' && roleId !== 'wolf').forEach(add)
       add('wolf')
     } else {
-      const definition = nightActions[actionId]
+      const definition = nightActionDefinitions[actionId]
       add(definition && definition.roleId ? definition.roleId : actionId)
     }
   })
@@ -93,15 +93,16 @@ function registrationRoleOrder(board) {
 }
 
 function makeGame(board, seatRoles, options = {}) {
-  const dealMode = options.dealMode === 'blind' ? 'blind' : 'known'
+  const identityAssignmentTiming = options.identityAssignmentTiming === 'firstNight' ? 'firstNight' : 'beforeGame'
+  const identitiesKnown = identityAssignmentTiming === 'beforeGame'
   const now = Date.now()
   const seats = seatRoles.map((roleId, index) => {
     const role = roles[roleId]
-    if (!role && !(dealMode === 'blind' && !roleId)) throw new Error(`未定义的身份：${roleId}`)
+    if (!role && !(!identitiesKnown && !roleId)) throw new Error(`未定义的身份：${roleId}`)
     return {
       number: index + 1,
       roleId: roleId || '',
-      roleName: role ? role.name : '待首夜登记',
+      roleName: role ? role.name : '待确认身份',
       alive: true,
       foolRevealed: false,
       deathCause: '',
@@ -114,8 +115,8 @@ function makeGame(board, seatRoles, options = {}) {
     id: String(now),
     boardId: board.id,
     boardName: board.name,
-    dealMode,
-    identityRegistration: dealMode === 'blind' ? { complete: false, roleCounts: { ...board.roleCounts }, roleOrder: registrationRoleOrder(board), currentIndex: 0, selectedSeatNumbers: [], pendingAction: null, firstNightActionsComplete: false } : null,
+    identityAssignmentTiming,
+    identityAssignment: identitiesKnown ? null : { complete: false, roleCounts: { ...board.roleCounts }, roleOrder: identityRoleOrder(board), currentIndex: 0, selectedSeatNumbers: [] },
     status: 'playing',
     winner: null,
     day: 1,
@@ -129,7 +130,6 @@ function makeGame(board, seatRoles, options = {}) {
     stepHistory: [],
     dayState: null,
     voteHistory: [],
-    nightStep: 0,
     seats,
     resources: { antidote: true, poison: true, lastGuardTarget: null, wolfKingClawUsed: false },
     special: defaultSpecialState(),
@@ -138,17 +138,17 @@ function makeGame(board, seatRoles, options = {}) {
     pendingDeathSkills: [],
     pendingLastWords: [],
     night: emptyNight(),
-    logs: [{ time: now, text: dealMode === 'blind' ? '游戏开始，进入第1夜身份登记' : '游戏开始，进入第1夜' }]
+    logs: [{ time: now, text: identitiesKnown ? '游戏开始，进入第1夜' : '游戏开始，第1夜行动前先确认号码身份' }]
   }
 }
 
-function makeBlindGame(board) {
-  return makeGame(board, Array(board.playerCount).fill(''), { dealMode: 'blind' })
+function makeFirstNightIdentityGame(board) {
+  return makeGame(board, Array(board.playerCount).fill(''), { identityAssignmentTiming: 'firstNight' })
 }
 
-function getBlindRegistrationPrompt(game) {
-  const state = game.identityRegistration
-  if (game.dealMode !== 'blind' || !state || state.complete) return null
+function getIdentityAssignmentPrompt(game) {
+  const state = game.identityAssignment
+  if (game.identityAssignmentTiming !== 'firstNight' || !state || state.complete) return null
   const roleId = state.roleOrder[state.currentIndex]
   const role = roles[roleId]
   if (!role) return null
@@ -156,27 +156,21 @@ function getBlindRegistrationPrompt(game) {
   return { roleId, roleName: role.name, required: required || 0, selectedSeatNumbers: (state.selectedSeatNumbers || []).slice() }
 }
 
-function getBlindRegistrationAction(game) {
-  return null
-}
-
-function normalizeBlindRegistration(game, board) {
-  const state = game.identityRegistration
+function normalizeIdentityAssignment(game, board) {
+  const state = game.identityAssignment
   if (!state) return null
   if (!state.roleCounts) state.roleCounts = { ...board.roleCounts }
-  if (!Array.isArray(state.roleOrder) || !state.roleOrder.length) state.roleOrder = registrationRoleOrder(board)
+  if (!Array.isArray(state.roleOrder) || !state.roleOrder.length) state.roleOrder = identityRoleOrder(board)
   if (!Array.isArray(state.selectedSeatNumbers)) state.selectedSeatNumbers = []
-  state.pendingAction = null
-  if (state.firstNightActionsComplete === undefined) state.firstNightActionsComplete = false
   return state
 }
 
-function toggleBlindRegistrationSeat(game, board, seatNumber) {
-  const state = normalizeBlindRegistration(game, board)
-  if (game.dealMode !== 'blind' || !state || state.complete) throw new Error('当前不在首夜身份登记阶段')
+function toggleIdentityAssignmentSeat(game, board, seatNumber) {
+  const state = normalizeIdentityAssignment(game, board)
+  if (game.identityAssignmentTiming !== 'firstNight' || !state || state.complete) throw new Error('当前不在首夜身份确认阶段')
   const seat = game.seats.find(item => item.number === Number(seatNumber))
   if (!seat || seat.roleId) throw new Error('该号码已经登记了身份')
-  const prompt = getBlindRegistrationPrompt(game)
+  const prompt = getIdentityAssignmentPrompt(game)
   const selected = state.selectedSeatNumbers
   const index = selected.indexOf(seat.number)
   if (index >= 0) selected.splice(index, 1)
@@ -185,10 +179,10 @@ function toggleBlindRegistrationSeat(game, board, seatNumber) {
     selected.push(seat.number)
     selected.sort((a, b) => a - b)
   }
-  return getBlindRegistrationPrompt(game)
+  return getIdentityAssignmentPrompt(game)
 }
 
-function advanceBlindRegistration(game, state) {
+function advanceIdentityAssignment(game, state) {
   const remainingRoleIds = state.roleOrder.slice(state.currentIndex)
   if (remainingRoleIds.length === 1) {
     const finalRoleId = remainingRoleIds[0]
@@ -196,36 +190,31 @@ function advanceBlindRegistration(game, state) {
     const remainingSeats = game.seats.filter(seat => !seat.roleId)
     if (remainingSeats.length !== Number(state.roleCounts[finalRoleId])) throw new Error('剩余号码与板子身份数量不一致')
     remainingSeats.forEach(seat => { seat.roleId = finalRoleId; seat.roleName = finalRole.name })
-    addLog(game, `首夜登记：剩余号码自动确认为${finalRole.name}`)
+    addLog(game, `第一夜身份确认：剩余号码自动确认为${finalRole.name}`)
     state.currentIndex = state.roleOrder.length
   }
   if (state.currentIndex >= state.roleOrder.length) {
     state.complete = true
-    state.firstNightActionsComplete = false
     ensureGameState(game)
-    addLog(game, '首夜身份登记完成，进入第一夜行动')
+    addLog(game, '号码身份确认完成，继续第一夜行动')
   }
   return state.complete
 }
 
-function completeBlindRegistration(game, board) {
-  const state = normalizeBlindRegistration(game, board)
-  if (game.dealMode !== 'blind' || !state || state.complete) throw new Error('当前不在首夜身份登记阶段')
-  const prompt = getBlindRegistrationPrompt(game)
-  if (prompt.selectedSeatNumbers.length !== prompt.required) throw new Error(`请登记${prompt.required}名${prompt.roleName}`)
+function completeIdentityAssignment(game, board) {
+  const state = normalizeIdentityAssignment(game, board)
+  if (game.identityAssignmentTiming !== 'firstNight' || !state || state.complete) throw new Error('当前不在首夜身份确认阶段')
+  const prompt = getIdentityAssignmentPrompt(game)
+  if (prompt.selectedSeatNumbers.length !== prompt.required) throw new Error(`请确认${prompt.required}名${prompt.roleName}`)
   prompt.selectedSeatNumbers.forEach(number => {
     const seat = game.seats.find(item => item.number === number)
     seat.roleId = prompt.roleId
     seat.roleName = prompt.roleName
   })
-  addLog(game, `首夜登记：${prompt.roleName}为${prompt.selectedSeatNumbers.map(number => `${number}号`).join('、')}`)
+  addLog(game, `第一夜身份确认：${prompt.roleName}为${prompt.selectedSeatNumbers.map(number => `${number}号`).join('、')}`)
   state.currentIndex += 1
   state.selectedSeatNumbers = []
-  return advanceBlindRegistration(game, state)
-}
-
-function completeBlindRegistrationAction(game, board, options = {}) {
-  throw new Error('身份登记与夜间行动已经分为两个阶段')
+  return advanceIdentityAssignment(game, state)
 }
 
 function emptyNight() {
@@ -297,7 +286,7 @@ function inspectionResult(game, actionId, targetNumber) {
   if (!target || !target.roleId) return ''
   let inspected = target
   const lock = actionValue(game, 'timeWolfConsort').target
-  const definition = nightActions[actionId]
+  const definition = nightActionDefinitions[actionId]
   if (lock === target.number && definition && definition.roleId && roles[definition.roleId] && roles[definition.roleId].camp === 'good' && actionId !== 'witch') {
     inspected = seatForRole(game, definition.roleId) || target
   }
@@ -393,8 +382,8 @@ function getNightActionCards(game, board) {
     game.special.awakenedHiddenWolf.joined = true
     if (game.special.awakenedHiddenWolf.mimickedRoleId === 'wolf') game.special.awakenedHiddenWolf.extraClawAvailable = true
   }
-  return (board.nightActions || []).map((actionId, index) => {
-    const definition = nightActions[actionId] || { id: actionId, roleId: actionId, name: actionId, kind: 'target', optional: true }
+  return (board.nightSequence || []).map((actionId, index) => {
+    const definition = nightActionDefinitions[actionId] || { id: actionId, roleId: actionId, name: actionId, kind: 'target', optional: true }
     let actor = definition.roleId ? seatForRole(game, definition.roleId) : null
     if (actionId === 'wolves') actor = activeWolfTeam(game)[0] || null
     const dynamic = dynamicSkillForAction(game, actionId)
@@ -656,7 +645,7 @@ function effectiveActionTarget(game, actionId, actor, isGoodSkill = false) {
 
 function settleNight(game) {
   ensureGameState(game)
-  if (game.dealMode === 'blind' && game.identityRegistration && !game.identityRegistration.complete) throw new Error('请先完成首夜身份登记')
+  if (game.identityAssignmentTiming === 'firstNight' && game.identityAssignment && !game.identityAssignment.complete) throw new Error('请先完成号码身份确认')
   ensureLonelyGirlTarget(game)
   const boardActions = Object.keys(game.night.actions || {})
   if (!boardActions.length) {
@@ -873,8 +862,6 @@ function settleNight(game) {
   addLog(game, `第${game.day}夜：${text}`)
   game.phase = 'day'
   game.dayState = createDayState(game)
-  game.nightStep = 0
-  if (game.identityRegistration) game.identityRegistration.firstNightActionsComplete = true
   game.special.goodSkillsSealedTonight = false
   evaluateWinner(game)
   return deaths
@@ -1018,7 +1005,6 @@ function applyDayEvent(game, type, number) {
 function nextNight(game) {
   game.day += 1
   game.phase = 'night'
-  game.nightStep = 0
   game.night = emptyNight()
   game.dayState = null
   addLog(game, `进入第${game.day}夜`)
@@ -1052,4 +1038,4 @@ function evaluateWinner(game) {
   return winner
 }
 
-module.exports = { makeGame, makeBlindGame, getBlindRegistrationPrompt, getBlindRegistrationAction, toggleBlindRegistrationSeat, completeBlindRegistration, completeBlindRegistrationAction, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }
+module.exports = { makeGame, makeFirstNightIdentityGame, getIdentityAssignmentPrompt, toggleIdentityAssignmentSeat, completeIdentityAssignment, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }

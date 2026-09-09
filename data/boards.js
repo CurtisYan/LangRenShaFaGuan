@@ -6,7 +6,7 @@ const commonDay = (roleCounts, exposure = 'double') => ({
   exposure,
   selfExposeRoleIds: Object.keys(roleCounts).filter(roleId => roles[roleId] && roles[roleId].canSelfExpose)
 })
-const common = (id, name, summary, roleCounts, nightActions, specialRules = [], exposure = 'double') => ({ id, name, summary, playerCount: 12, roleCounts, nightActions, dayRules: commonDay(roleCounts, exposure), rules: ['暗牌，有警长', `${exposure === 'double' ? '双曝' : '单曝'}吞警徽`, '女巫全程不能自救', ...specialRules] })
+const common = (id, name, summary, roleCounts, nightSequence, specialRules = [], exposure = 'double') => ({ id, name, summary, playerCount: 12, roleCounts, nightSequence, dayRules: commonDay(roleCounts, exposure), rules: ['暗牌，有警长', `${exposure === 'double' ? '双曝' : '单曝'}吞警徽`, '女巫全程不能自救', ...specialRules] })
 
 const boards = [
   common('standard12', '12人标准场', '4狼 + 4民 + 预女猎愚', { wolf: 4, villager: 4, seer: 1, witch: 1, hunter: 1, fool: 1 }, ['wolves', 'witch', 'seer'], ['猎人吃毒不能开枪', '愚者被放逐翻牌不死']),

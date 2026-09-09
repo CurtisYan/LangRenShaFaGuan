@@ -1,6 +1,6 @@
 const { getBoard } = require('../../data/boards')
 const { roles } = require('../../data/roles')
-const { makeGame, makeBlindGame } = require('../../utils/game-engine')
+const { makeGame, makeFirstNightIdentityGame } = require('../../utils/game-engine')
 
 Page({
   data: { board: null, seats: [], mode: 'role', selectedRoleId: '', selectedSeatNumber: 1, roleGroups: [], numberCards: [], summaryItems: [], assignedCount: 0, error: '' },
@@ -95,8 +95,8 @@ Page({
     if (board) wx.setStorageSync(`setupDraft_${board.id}`, { mode, seatRoles: seats.map(item => item.roleId) })
   },
 
-  startBlindGame() {
-    getApp().saveGame(makeBlindGame(this.data.board))
+  startFirstNightIdentityGame() {
+    getApp().saveGame(makeFirstNightIdentityGame(this.data.board))
     wx.redirectTo({ url: '/pages/game/game' })
   },
 

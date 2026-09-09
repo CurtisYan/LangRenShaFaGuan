@@ -45,38 +45,25 @@
 .unavailable-skill button { width: 100%; margin-top: 16rpx; }
 .result-panel { background: #f0f7f1; }
 .result-panel .title { margin-bottom: 12rpx; color: #365b46; }
-.registration-panel { box-sizing: border-box; margin-top: 12rpx; padding: 28rpx; border: 1rpx solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
-.registration-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18rpx; color: var(--color-ink-secondary); font-size: 22rpx; }
-.registration-heading .subtitle { color: var(--color-ink); }
-.registration-progress { height: 8rpx; margin: 20rpx 0 26rpx; overflow: hidden; border-radius: 99rpx; background: var(--color-surface-soft); }
-.registration-progress-fill { height: 100%; border-radius: inherit; background: #99b5a6; transition: width .2s ease; }
-.registration-script { padding: 24rpx; border-left: 5rpx solid var(--color-accent); border-radius: 4rpx 14rpx 14rpx 4rpx; background: var(--color-surface-soft); }
-.registration-role { color: var(--color-ink-secondary); font-size: 22rpx; font-weight: 600; letter-spacing: .12em; }
-.registration-prompt { margin-top: 12rpx; color: var(--color-ink); font-size: 36rpx; font-weight: 600; line-height: 1.4; }
-.registration-private { margin-top: 18rpx; color: var(--color-ink-secondary); font-size: 24rpx; line-height: 1.6; }
-.registration-action-script { border-left-color: #c4ad78; }
-.registration-action-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 14rpx; margin-top: 24rpx; color: var(--color-ink-secondary); font-size: 24rpx; }
-.registration-action-entry.witch-entry { display: block; }
-.registration-action-entry.witch-entry picker { display: inline-block; margin: 0 12rpx 12rpx 0; }
-.registration-complete-panel .subtitle { margin-top: 12rpx; color: var(--color-ink); font-size: 34rpx; }
-.registration-complete-copy { margin: 20rpx 0 26rpx; color: var(--color-ink-secondary); font-size: 24rpx; line-height: 1.65; }
-.registration-number-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11rpx; margin-top: 26rpx; }
-.registration-seat { box-sizing: border-box; min-height: 90rpx; padding: 14rpx 8rpx; border: 1rpx solid var(--color-border); border-radius: var(--radius-control); color: var(--color-ink); background: var(--color-surface-soft); text-align: center; }
-.registration-seat.selected { border-color: var(--color-accent); color: var(--color-ink); background: var(--color-selected); box-shadow: inset 0 0 0 1rpx var(--color-accent); }
-.registration-seat.assigned { color: var(--color-ink-muted); background: var(--color-canvas); }
-.registration-seat-number { font-size: 28rpx; font-weight: 600; }
-.registration-seat-state { margin-top: 8rpx; font-size: 20rpx; line-height: 1.3; }
-.registration-selection { margin: 22rpx 0 16rpx; color: var(--color-ink-secondary); font-size: 22rpx; text-align: center; }
-.registration-panel button.primary { border-color: var(--color-primary); color: var(--color-on-primary); background: var(--color-primary); }
-.registration-panel button[disabled] { border-color: var(--color-border); color: var(--color-ink-muted); background: var(--color-surface-soft); }
-.registration-action-buttons { gap: 12rpx; margin-top: 22rpx; }
-.registration-action-buttons .registration-action-button { min-height: 82rpx; padding: 16rpx 12rpx; border-radius: var(--radius-control); font-size: 24rpx; font-weight: 600; line-height: 1.3; letter-spacing: .01em; }
-.registration-action-buttons .registration-action-skip { border-color: var(--color-border); color: var(--color-ink-secondary); background: var(--color-surface-soft); }
-.registration-panel .registration-action-buttons .registration-action-confirm { border-color: var(--color-primary); color: var(--color-on-primary); background: var(--color-primary); }
-.registration-action-buttons .registration-action-skip:active { border-color: var(--color-ink-muted); color: var(--color-ink); background: var(--color-selected); }
-.registration-panel .registration-action-buttons .registration-action-confirm:active { border-color: var(--color-primary-pressed); color: var(--color-on-primary); background: var(--color-primary-pressed); }
-.registration-panel .registration-action-buttons .registration-action-confirm[disabled] { border-color: var(--color-border); color: var(--color-ink-muted); background: var(--color-surface-soft); }
-.registration-tip { margin-top: 18rpx; color: var(--color-ink-muted); font-size: 22rpx; line-height: 1.55; text-align: center; }
+.identity-panel { box-sizing: border-box; margin-top: 12rpx; padding: 28rpx; border: 1rpx solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
+.identity-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18rpx; color: var(--color-ink-secondary); font-size: 22rpx; }
+.identity-heading .subtitle { color: var(--color-ink); }
+.identity-progress { height: 8rpx; margin: 20rpx 0 26rpx; overflow: hidden; border-radius: 99rpx; background: var(--color-surface-soft); }
+.identity-progress-fill { height: 100%; border-radius: inherit; background: #99b5a6; transition: width .2s ease; }
+.identity-script { padding: 24rpx; border-left: 5rpx solid var(--color-accent); border-radius: 4rpx 14rpx 14rpx 4rpx; background: var(--color-surface-soft); }
+.identity-role { color: var(--color-ink-secondary); font-size: 22rpx; font-weight: 600; letter-spacing: .12em; }
+.identity-prompt { margin-top: 12rpx; color: var(--color-ink); font-size: 36rpx; font-weight: 600; line-height: 1.4; }
+.identity-private { margin-top: 18rpx; color: var(--color-ink-secondary); font-size: 24rpx; line-height: 1.6; }
+.identity-number-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 11rpx; margin-top: 26rpx; }
+.identity-seat { box-sizing: border-box; min-height: 90rpx; padding: 14rpx 8rpx; border: 1rpx solid var(--color-border); border-radius: var(--radius-control); color: var(--color-ink); background: var(--color-surface-soft); text-align: center; }
+.identity-seat.selected { border-color: var(--color-accent); color: var(--color-ink); background: var(--color-selected); box-shadow: inset 0 0 0 1rpx var(--color-accent); }
+.identity-seat.assigned { color: var(--color-ink-muted); background: var(--color-canvas); }
+.identity-seat-number { font-size: 28rpx; font-weight: 600; }
+.identity-seat-state { margin-top: 8rpx; font-size: 20rpx; line-height: 1.3; }
+.identity-selection { margin: 22rpx 0 16rpx; color: var(--color-ink-secondary); font-size: 22rpx; text-align: center; }
+.identity-panel button.primary { border-color: var(--color-primary); color: var(--color-on-primary); background: var(--color-primary); }
+.identity-panel button[disabled] { border-color: var(--color-border); color: var(--color-ink-muted); background: var(--color-surface-soft); }
+.identity-tip { margin-top: 18rpx; color: var(--color-ink-muted); font-size: 22rpx; line-height: 1.55; text-align: center; }
 .night-console { overflow: hidden; border: 1rpx solid var(--color-border); border-radius: var(--radius-sheet); background: var(--color-surface); }
 .console-heading { display: flex; align-items: flex-end; justify-content: space-between; padding: 26rpx 26rpx 22rpx; border-bottom: 1rpx solid var(--color-border); }
 .console-heading .subtitle { margin: 0; color: var(--color-ink); }

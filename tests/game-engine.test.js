@@ -12,6 +12,14 @@ function wolfKingFresh() { return engine.makeGame(getBoard('wolfKingMagician12')
 function boardRoles(boardId) {
   return Object.entries(getBoard(boardId).roleCounts).flatMap(([roleId, count]) => Array(count).fill(roleId))
 }
+function completeFirstNightIdentities(game, board) {
+  while (!game.identityAssignment.complete) {
+    const prompt = engine.getIdentityAssignmentPrompt(game)
+    const available = game.seats.filter(seat => !seat.roleId).slice(0, prompt.required)
+    available.forEach(seat => engine.toggleIdentityAssignmentSeat(game, board, seat.number))
+    engine.completeIdentityAssignment(game, board)
+  }
+}
 function resolveAllDeathPrompts(game) {
   while (game.pendingDeathSkills.length) engine.resolveDeathSkill(game, game.pendingDeathSkills[0].seatNumber, false)
 }
@@ -19,46 +27,52 @@ function resolveAllDeathPrompts(game) {
 {
   assert.equal(boards.length, 18, '文档中的18个板子都应可以开局')
   boards.forEach(board => {
-    assert.equal(board.nightActions[board.nightActions.length - 1], board.roleCounts.seer ? 'seer' : board.id === 'pureWhiteNight12' ? 'pureWhiteGirl' : board.id === 'mirrorMystery12' ? 'mirrorGirl' : board.nightActions[board.nightActions.length - 1], `${board.name}的查验身份应收在夜间流程末尾`)
+    assert.equal(board.nightSequence[board.nightSequence.length - 1], board.roleCounts.seer ? 'seer' : board.id === 'pureWhiteNight12' ? 'pureWhiteGirl' : board.id === 'mirrorMystery12' ? 'mirrorGirl' : board.nightSequence[board.nightSequence.length - 1], `${board.name}的查验身份应收在夜间流程末尾`)
   })
-  const hiddenOrder = getBoard('mirrorMystery12').nightActions
+  const hiddenOrder = getBoard('mirrorMystery12').nightSequence
   assert.ok(hiddenOrder.indexOf('awakenedHiddenWolf') < hiddenOrder.indexOf('wolves'), '觉醒隐狼必须先于狼刀行动')
-  const kingOrder = getBoard('awakenedWolfKing12').nightActions
+  const kingOrder = getBoard('awakenedWolfKing12').nightSequence
   assert.equal(kingOrder.indexOf('awakenedWolfKing'), kingOrder.indexOf('wolves') + 1, '觉醒狼王必须紧跟狼刀行动')
   ;[['wolfBeautyKnight12', 'wolfBeauty'], ['gargoyleGravedigger12', 'gargoyle'], ['pureWhiteNight12', 'wolfWitch'], ['fogCrow12', 'wolfCrowClaw']].forEach(([boardId, actionId]) => {
-    const order = getBoard(boardId).nightActions
+    const order = getBoard(boardId).nightSequence
     assert.ok(order.indexOf(actionId) > order.indexOf('wolves'), `${actionId}应在狼刀后行动`)
+  })
+  boards.forEach(board => {
+    const game = engine.makeFirstNightIdentityGame(board)
+    completeFirstNightIdentities(game, board)
+    assert.deepEqual(engine.getNightActionCards(game, board).map(card => card.id), board.nightSequence, `${board.name}两种身份确认时机必须复用同一夜间序列`)
   })
 }
 
 {
   const board = getBoard('standard12')
-  const game = engine.makeBlindGame(board)
-  assert.equal(game.dealMode, 'blind')
-  assert.equal(game.seats.every(seat => !seat.roleId && seat.roleName === '待首夜登记'), true, '盲发开局不应预先生成号码身份')
-  assert.throws(() => engine.settleNight(game), /先完成首夜身份登记/, '身份未登记完整时不能结算第一夜')
-  let prompt = engine.getBlindRegistrationPrompt(game)
+  const game = engine.makeFirstNightIdentityGame(board)
+  assert.equal(game.identityAssignmentTiming, 'firstNight', '迷糊法官只改变身份确认时机')
+  assert.equal(game.seats.every(seat => !seat.roleId && seat.roleName === '待确认身份'), true, '第一夜确认身份的开局不应预先生成号码身份')
+  assert.throws(() => engine.settleNight(game), /先完成号码身份确认/, '身份未确认完整时不能结算第一夜')
+  let prompt = engine.getIdentityAssignmentPrompt(game)
   assert.deepEqual({ name: prompt.roleName, required: prompt.required }, { name: '狼人', required: 4 }, '首轮应按板子人数登记狼人')
-  ;[1, 2, 3, 4].forEach(number => engine.toggleBlindRegistrationSeat(game, board, number))
-  assert.throws(() => engine.toggleBlindRegistrationSeat(game, board, 5), /只需登记4人/, '不能选取超过板子规定数量的号码')
-  engine.completeBlindRegistration(game, board)
-  while (!game.identityRegistration.complete) {
-    prompt = engine.getBlindRegistrationPrompt(game)
+  ;[1, 2, 3, 4].forEach(number => engine.toggleIdentityAssignmentSeat(game, board, number))
+  assert.throws(() => engine.toggleIdentityAssignmentSeat(game, board, 5), /只需登记4人/, '不能选取超过板子规定数量的号码')
+  engine.completeIdentityAssignment(game, board)
+  while (!game.identityAssignment.complete) {
+    prompt = engine.getIdentityAssignmentPrompt(game)
     if (prompt) {
       const available = game.seats.filter(seat => !seat.roleId).slice(0, prompt.required)
-      available.forEach(seat => engine.toggleBlindRegistrationSeat(game, board, seat.number))
-      engine.completeBlindRegistration(game, board)
+      available.forEach(seat => engine.toggleIdentityAssignmentSeat(game, board, seat.number))
+      engine.completeIdentityAssignment(game, board)
     }
   }
-  assert.equal(game.identityRegistration.complete, true, '所有身份登记完成后应结束登记流程')
-  assert.equal(game.identityRegistration.firstNightActionsComplete, false, '身份登记完成后应进入独立的首夜行动阶段')
-  assert.equal(engine.getBlindRegistrationAction(game), null, '登记过程中不再穿插首夜行动')
-  assert.equal(game.seats.every(seat => Boolean(seat.roleId)), true, '盲发登记完成后每个号码都必须有身份')
+  assert.equal(game.identityAssignment.complete, true, '所有身份确认完成后应解除第一夜行动门槛')
+  assert.equal(game.seats.every(seat => Boolean(seat.roleId)), true, '号码身份确认完成后每个号码都必须有身份')
   Object.entries(board.roleCounts).forEach(([roleId, count]) => assert.equal(game.seats.filter(seat => seat.roleId === roleId).length, count, `${roleId}人数应符合板子配置`))
+  assert.deepEqual(engine.getNightActionCards(game, board).map(card => card.id), board.nightSequence, '身份确认时机不应改变板子的夜间流程')
+  const knownGame = engine.makeGame(board, roles)
+  assert.deepEqual(engine.getNightActionCards(knownGame, board).map(card => card.id), board.nightSequence, '提前确认身份也应使用同一份夜间流程')
   engine.setNightActionTarget(game, 'wolves', 5)
   engine.setWitchAction(game, 'none')
   engine.settleNight(game)
-  assert.equal(game.identityRegistration.firstNightActionsComplete, true, '结算第一夜后应标记首夜行动完成')
+  assert.equal(game.phase, 'day', '完成同一份第一夜行动后应正常进入白天')
 }
 
 {

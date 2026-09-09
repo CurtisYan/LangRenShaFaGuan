@@ -18,15 +18,15 @@
     <view wx:if="{{game.status === 'ended'}}" class="result-panel"><view class="eyebrow">本局结束</view><view class="title">{{game.winner}}获胜</view><view class="muted">胜负条件已经满足。</view></view>
 
     <block wx:elif="{{game.phase === 'night'}}">
-      <view wx:if="{{isBlindRegistration}}" class="registration-panel">
-        <view class="registration-heading"><view><view class="eyebrow">迷糊法官模式 · 首夜登记</view><view class="subtitle">身份尚未全部确认</view></view><text>{{registrationProgressText}}</text></view>
-        <view class="registration-progress"><view class="registration-progress-fill" style="width: {{registrationProgressPercent}}%;"></view></view>
-        <block wx:if="{{registrationRole}}">
-          <view class="registration-script"><view class="registration-role">{{registrationRole.name}}</view><view class="registration-prompt">{{registrationRole.name}}请睁眼。</view><view class="registration-private">以下内容仅供法官操作，不要念出号码：请选择 {{registrationRole.required}} 名{{registrationRole.name}}。</view></view>
-          <view class="registration-number-grid"><view wx:for="{{registrationSeatCards}}" wx:key="number" class="registration-seat tap-surface {{item.selected ? 'selected' : ''}} {{item.assigned ? 'assigned' : ''}}" data-number="{{item.number}}" bindtap="toggleRegistrationSeat"><view class="registration-seat-number">{{item.number}}号</view><view class="registration-seat-state">{{item.selected ? '本轮已选' : (item.assigned ? item.roleName : '待登记')}}</view></view></view>
-          <view class="registration-selection">本轮已选 {{registrationRole.selectedCount}} / {{registrationRole.required}} 人</view>
-          <button class="primary full-action" disabled="{{!registrationCanConfirm}}" bindtap="confirmRegistrationRole">确认{{registrationRole.name}}身份</button>
-          <view class="registration-tip">先登记完全部身份，再进入完整的第一夜行动表。最后一种剩余身份由系统自动补齐。</view>
+      <view wx:if="{{identityAssignmentPending}}" class="identity-panel">
+        <view class="identity-heading"><view><view class="eyebrow">第一夜 · 身份确认</view><view class="subtitle">先确认号码身份，再继续同一夜间流程</view></view><text>{{identityProgressText}}</text></view>
+        <view class="identity-progress"><view class="identity-progress-fill" style="width: {{identityProgressPercent}}%;"></view></view>
+        <block wx:if="{{identityRole}}">
+          <view class="identity-script"><view class="identity-role">{{identityRole.name}}</view><view class="identity-prompt">{{identityRole.name}}请睁眼。</view><view class="identity-private">以下内容仅供法官操作，不要念出号码：请选择 {{identityRole.required}} 名{{identityRole.name}}。</view></view>
+          <view class="identity-number-grid"><view wx:for="{{identitySeatCards}}" wx:key="number" class="identity-seat tap-surface {{item.selected ? 'selected' : ''}} {{item.assigned ? 'assigned' : ''}}" data-number="{{item.number}}" bindtap="toggleIdentitySeat"><view class="identity-seat-number">{{item.number}}号</view><view class="identity-seat-state">{{item.selected ? '本轮已选' : (item.assigned ? item.roleName : '待确认')}}</view></view></view>
+          <view class="identity-selection">本轮已选 {{identityRole.selectedCount}} / {{identityRole.required}} 人</view>
+          <button class="primary full-action" disabled="{{!identityCanConfirm}}" bindtap="confirmIdentityRole">确认{{identityRole.name}}身份</button>
+          <view class="identity-tip">这不是另一套夜间模式。身份全部确认后，继续执行当前板子的同一份夜间行动表；最后一种剩余身份由系统自动补齐。</view>
         </block>
       </view>
       <block wx:else>

@@ -26,11 +26,11 @@ page.setData = function setData(update, callback) {
 }
 
 page.onLoad.call(page, { boardId: 'standard12' })
-page.startBlindGame.call(page)
+page.startFirstNightIdentityGame.call(page)
 
-assert.equal(app.globalData.game.dealMode, 'blind', '线下发牌卡片应创建盲发对局')
-assert.equal(app.globalData.game.phase, 'night', '线下发牌应直接进入第一夜')
-assert.equal(app.globalData.game.identityRegistration.complete, false, '第一夜应先处于身份登记状态')
+assert.equal(app.globalData.game.identityAssignmentTiming, 'firstNight', '迷糊法官入口只应改变身份确认时机')
+assert.equal(app.globalData.game.phase, 'night', '迷糊法官入口应进入同一个第一夜流程')
+assert.equal(app.globalData.game.identityAssignment.complete, false, '第一夜行动前应先确认号码身份')
 assert.equal(app.globalData.game.seats.every(seat => !seat.roleId), true, '点击盲发入口不应使用当前身份配置草稿')
 assert.equal(redirects[0], '/pages/game/game', '线下发牌入口应直接打开主持对局页')
 

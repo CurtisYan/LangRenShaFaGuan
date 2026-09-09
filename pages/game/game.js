@@ -9,7 +9,7 @@ Page({
     witchActions: ['不用药', '使用解药', '使用毒药'], witchActionIndex: 0,
     inspection: '', wolfMembers: '', seerNumber: '', witchNumber: '', guardNumber: '', lonelyGirlNumber: '', wolfAlive: false, guardAlive: false, seerAlive: false, witchAlive: false, lonelyGirlAlive: false, hasGuard: false, hasLonelyGirl: false,
     dayState: null, sheriffCandidates: [], sheriffSignupSeats: [], dayVoters: [], voteTargets: [], voteTargetLabels: [], selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0,
-    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSheriffTransfer: null, sheriffTransferTargets: [], sheriffTransferTargetLabels: [], selectedSheriffTransferIndex: 0, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, confirmationPulse: '', isBlindRegistration: false, registrationRole: null, registrationSeatCards: [], registrationCanConfirm: false, registrationProgressText: '', registrationProgressPercent: 0, nightActionCards: []
+    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSheriffTransfer: null, sheriffTransferTargets: [], sheriffTransferTargetLabels: [], selectedSheriffTransferIndex: 0, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, confirmationPulse: '', identityAssignmentPending: false, identityRole: null, identitySeatCards: [], identityCanConfirm: false, identityProgressText: '', identityProgressPercent: 0, nightActionCards: []
   },
 
   onShow() { this.refresh() },
@@ -28,9 +28,9 @@ Page({
     const lonelyGirlTargetIndex = Math.max(0, lonelyGirlTargets.findIndex(seat => seat.number === lonelyGirlTarget))
     const dayView = game.phase === 'day' ? this.makeDayView(game, board, aliveSeats) : {}
     const inspectionTarget = game.night.seerTarget && game.seats.find(seat => seat.number === game.night.seerTarget)
-    const registrationPrompt = engine.getBlindRegistrationPrompt(game)
+    const identityPrompt = engine.getIdentityAssignmentPrompt(game)
     const registeredCount = game.seats.filter(seat => seat.roleId).length
-    const nightActionCards = game.phase === 'night' && !registrationPrompt ? engine.getNightActionCards(game, board) : []
+    const nightActionCards = game.phase === 'night' && !identityPrompt ? engine.getNightActionCards(game, board) : []
     const deathPrompt = game.dayState && game.dayState.stage === 'deathSkills' && game.pendingDeathSkills && game.pendingDeathSkills[0]
     const lastWordPrompt = game.status === 'playing' && game.dayState && game.dayState.stage === 'lastWords' && game.pendingLastWords && game.pendingLastWords[0]
     const sheriffTransferStages = ['deathSkills', 'lastWords', 'discussion', 'exileDone', 'selfExposeNight']
@@ -58,12 +58,12 @@ Page({
       pendingSkillCanTarget: deathPrompt ? engine.canUseDeathSkill(game, deathPrompt) : false,
       choosingSkillTarget: deathPrompt && this.data.choosingSkillTarget && this.data.pendingSkill && this.data.pendingSkill.number === deathPrompt.seatNumber,
       skillTargetLabels: aliveSeats.map(seat => `${seat.number}号`), selectedSkillTargetIndex: 0,
-      isBlindRegistration: Boolean(registrationPrompt),
-      registrationRole: registrationPrompt ? { id: registrationPrompt.roleId, name: registrationPrompt.roleName, required: registrationPrompt.required, selectedCount: registrationPrompt.selectedSeatNumbers.length } : null,
-      registrationSeatCards: registrationPrompt ? game.seats.map(seat => ({ number: seat.number, roleName: seat.roleName, assigned: Boolean(seat.roleId), selected: registrationPrompt.selectedSeatNumbers.includes(seat.number) })) : [],
-      registrationCanConfirm: Boolean(registrationPrompt && registrationPrompt.selectedSeatNumbers.length === registrationPrompt.required),
-      registrationProgressText: registrationPrompt ? `已确认 ${registeredCount} / ${game.seats.length} 人` : '',
-      registrationProgressPercent: registrationPrompt ? Math.round(registeredCount / game.seats.length * 100) : 100,
+      identityAssignmentPending: Boolean(identityPrompt),
+      identityRole: identityPrompt ? { id: identityPrompt.roleId, name: identityPrompt.roleName, required: identityPrompt.required, selectedCount: identityPrompt.selectedSeatNumbers.length } : null,
+      identitySeatCards: identityPrompt ? game.seats.map(seat => ({ number: seat.number, roleName: seat.roleName, assigned: Boolean(seat.roleId), selected: identityPrompt.selectedSeatNumbers.includes(seat.number) })) : [],
+      identityCanConfirm: Boolean(identityPrompt && identityPrompt.selectedSeatNumbers.length === identityPrompt.required),
+      identityProgressText: identityPrompt ? `已确认 ${registeredCount} / ${game.seats.length} 人` : '',
+      identityProgressPercent: identityPrompt ? Math.round(registeredCount / game.seats.length * 100) : 100,
       nightActionCards,
       seatCards, voteHistory, selectedVoteHistoryIndex: voteIndex, selectedVoteRound, selectedVoteRows, canGoBack: Boolean(latestStep),
       ...dayView
@@ -153,16 +153,16 @@ Page({
     this.refresh()
   },
   openBoardDetail() { wx.navigateTo({ url: `/pages/board-detail/board-detail?boardId=${this.data.game.boardId}` }) },
-  toggleRegistrationSeat(event) {
+  toggleIdentitySeat(event) {
     const game = this.data.game
-    try { engine.toggleBlindRegistrationSeat(game, this.data.board, event.currentTarget.dataset.number) } catch (error) { return this.toast(error.message) }
+    try { engine.toggleIdentityAssignmentSeat(game, this.data.board, event.currentTarget.dataset.number) } catch (error) { return this.toast(error.message) }
     this.saveAndRefresh(game)
   },
-  confirmRegistrationRole() {
+  confirmIdentityRole() {
     const game = this.data.game
-    if (!this.data.registrationCanConfirm) return this.toast(`请选满${this.data.registrationRole.required}个号码`)
-    this.checkpoint(game, `登记${this.data.registrationRole.name}`)
-    try { engine.completeBlindRegistration(game, this.data.board) } catch (error) { return this.toast(error.message) }
+    if (!this.data.identityCanConfirm) return this.toast(`请选满${this.data.identityRole.required}个号码`)
+    this.checkpoint(game, `确认${this.data.identityRole.name}身份`)
+    try { engine.completeIdentityAssignment(game, this.data.board) } catch (error) { return this.toast(error.message) }
     this.saveAndRefresh(game)
   },
   electSheriff(game, number, reason) {

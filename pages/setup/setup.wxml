@@ -11,10 +11,10 @@
     <view wx:else class="muted">从下方选择身份与号码牌</view>
   </view>
 
-  <view class="blind-deal-card tap-surface" bindtap="startBlindGame">
-    <view class="blind-card-top"><view><view class="blind-card-kicker">迷糊法官模式</view><view class="blind-card-title">首夜登记身份</view></view><text class="blind-card-arrow">›</text></view>
-    <view class="blind-card-copy">适合身份牌已经随机发给玩家、法官开局还不知道各号码身份的情况。点击后直接进入第一夜：先逐项登记全场身份，再按当前板子的完整夜间顺序统一行动。</view>
-    <view class="blind-card-note">无需在本页配置号码，也不会覆盖下方已有的身份草稿。</view>
+  <view class="first-night-identity-card tap-surface" bindtap="startFirstNightIdentityGame">
+    <view class="identity-entry-top"><view><view class="identity-entry-kicker">迷糊法官模式</view><view class="identity-entry-title">第一夜确认身份</view></view><text class="identity-entry-arrow">›</text></view>
+    <view class="identity-entry-copy">适合身份牌已经随机发给玩家、法官开局还不知道各号码身份的情况。点击后进入同一个第一夜流程：先确认全场号码身份，再执行当前板子的夜间行动表。</view>
+    <view class="identity-entry-note">无需在本页配置号码，也不会覆盖下方已有的身份草稿。</view>
   </view>
 
   <view class="setup-divider"><text>或由法官提前录入身份</text></view>

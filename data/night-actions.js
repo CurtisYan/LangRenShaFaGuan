@@ -1,4 +1,4 @@
-const nightActions = {
+const nightActionDefinitions = {
   magician: { id: 'magician', roleId: 'magician', name: '魔术师行动', kind: 'multiTarget', targetCount: 2, optional: true },
   nightmare: { id: 'nightmare', roleId: 'nightmare', name: '噩梦之影恐惧', kind: 'target', optional: true, excludeSelf: true },
   lonelyGirl: { id: 'lonelyGirl', roleId: 'lonelyGirl', name: '孤独少女崇拜', kind: 'target', firstNightOnly: true, required: true, excludeSelf: true },
@@ -28,4 +28,4 @@ const nightActions = {
   dreamer: { id: 'dreamer', roleId: 'dreamer', name: '摄梦人行动', kind: 'target', required: true, excludeSelf: true }
 }
 
-module.exports = { nightActions }
+module.exports = { nightActionDefinitions }

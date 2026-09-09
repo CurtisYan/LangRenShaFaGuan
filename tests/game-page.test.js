@@ -5,8 +5,8 @@ const { getBoard } = require('../data/boards')
 const engine = require('../utils/game-engine')
 
 const gameTemplate = fs.readFileSync(path.join(__dirname, '../pages/game/game.wxml'), 'utf8')
-assert.equal(gameTemplate.includes('请{{registrationRole.name}}玩家睁眼'), false, '身份登记主持词不应出现生硬的“请某身份玩家睁眼”')
-assert.equal(gameTemplate.includes('{{registrationRole.name}}请睁眼'), true, '身份登记主持词应使用“某身份请睁眼”')
+assert.equal(gameTemplate.includes('请{{identityRole.name}}玩家睁眼'), false, '身份确认主持词不应出现生硬的“请某身份玩家睁眼”')
+assert.equal(gameTemplate.includes('{{identityRole.name}}请睁眼'), true, '身份确认主持词应使用“某身份请睁眼”')
 
 let page
 global.Page = config => { page = config }
@@ -102,20 +102,20 @@ assert.equal(withdrawnNumber, 2, '退水按钮放大完成时应立即执行退�
 assert.equal(toastMessages.length, 0, '长按退水成功时不应显示长按提示')
 page.withdrawSheriffCandidate = originalWithdraw
 
-const blindGame = engine.makeBlindGame(board)
-app.globalData.game = blindGame
+const firstNightIdentityGame = engine.makeFirstNightIdentityGame(board)
+app.globalData.game = firstNightIdentityGame
 page.refresh.call(page)
-assert.equal(page.data.isBlindRegistration, true, '线下发牌进入第一夜后应先显示身份登记卡片')
-assert.equal(page.data.registrationRole.name, '狼人', '身份登记卡片应显示当前需要确认的身份')
-while (page.data.isBlindRegistration) {
-  const available = page.data.registrationSeatCards.filter(seat => !seat.assigned).slice(0, page.data.registrationRole.required)
-  available.forEach(seat => page.toggleRegistrationSeat.call(page, { currentTarget: { dataset: { number: seat.number } } }))
-  assert.equal(page.data.registrationCanConfirm, true, '选满当前身份人数后应允许确认')
-  page.confirmRegistrationRole.call(page)
+assert.equal(page.data.identityAssignmentPending, true, '第一夜行动前应先显示号码身份确认')
+assert.equal(page.data.identityRole.name, '狼人', '身份确认卡片应显示当前需要确认的身份')
+while (page.data.identityAssignmentPending) {
+  const available = page.data.identitySeatCards.filter(seat => !seat.assigned).slice(0, page.data.identityRole.required)
+  available.forEach(seat => page.toggleIdentitySeat.call(page, { currentTarget: { dataset: { number: seat.number } } }))
+  assert.equal(page.data.identityCanConfirm, true, '选满当前身份人数后应允许确认')
+  page.confirmIdentityRole.call(page)
 }
-assert.equal(app.globalData.game.identityRegistration.complete, true, '登记完全部身份后应结束首夜登记')
-assert.equal(app.globalData.game.night.wolfTarget, null, '身份登记阶段不应提前记录任何首夜行动')
-assert.equal(page.data.nightActionCards.length, board.nightActions.length, '登记完成后应显示完整的板子夜间行动表')
+assert.equal(app.globalData.game.identityAssignment.complete, true, '确认完全部身份后应继续同一夜间流程')
+assert.equal(app.globalData.game.night.wolfTarget, null, '身份确认不应提前记录任何夜间行动')
+assert.equal(page.data.nightActionCards.length, board.nightSequence.length, '两种身份确认时机应显示同一份板子夜间行动表')
 page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'wolves' } }, detail: { value: 4 } })
 page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'seer' } }, detail: { value: 0 } })
 assert.equal(app.globalData.game.night.wolfTarget, 5, '完整夜间行动表应记录狼人刀口')

@@ -3,7 +3,7 @@ const { boards } = require('../data/boards')
 const { roleDocuments } = require('../data/role-documents')
 const { boardDocuments } = require('../data/board-documents')
 const { roles } = require('../data/roles')
-const { nightActions } = require('../data/night-actions')
+const { nightActionDefinitions } = require('../data/night-actions')
 
 assert.equal(Object.keys(roleDocuments).length, 33, '角色资料应完整收录文档中的 33 个专章')
 assert.equal(Object.keys(boardDocuments).length, 18, '板子资料应完整收录文档中的 18 个板子')
@@ -12,7 +12,7 @@ assert.deepEqual(boards.map(board => board.id).sort(), Object.keys(boardDocument
 boards.forEach(board => {
   assert.equal(Object.entries(board.roleCounts).reduce((sum, [, count]) => sum + count, 0), board.playerCount, `${board.name}身份数量应等于玩家人数`)
   Object.keys(board.roleCounts).forEach(roleId => assert.ok(roles[roleId], `${board.name}引用的${roleId}必须存在于角色库`))
-  board.nightActions.forEach(actionId => assert.ok(nightActions[actionId], `${board.name}夜间行动${actionId}必须有统一定义`))
+  board.nightSequence.forEach(actionId => assert.ok(nightActionDefinitions[actionId], `${board.name}夜间行动${actionId}必须有统一定义`))
 })
 Object.keys(roles).filter(roleId => roleId !== 'wolfKing').forEach(roleId => assert.ok(roleDocuments[roleId], `${roleId}应有角色资料`))
 assert.equal(roleDocuments.cursedFox.markdown.includes('### Q&A'), true, '咒狐 Q&A 不应遗漏')
