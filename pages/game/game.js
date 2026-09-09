@@ -9,7 +9,7 @@ Page({
     witchActions: ['不用药', '使用解药', '使用毒药'], witchActionIndex: 0,
     inspection: '', wolfMembers: '', seerNumber: '', witchNumber: '', guardNumber: '', lonelyGirlNumber: '', wolfAlive: false, guardAlive: false, seerAlive: false, witchAlive: false, lonelyGirlAlive: false, hasGuard: false, hasLonelyGirl: false,
     dayState: null, sheriffCandidates: [], sheriffSignupSeats: [], dayVoters: [], voteTargets: [], voteTargetLabels: [], selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0,
-    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSheriffTransfer: null, sheriffTransferTargets: [], sheriffTransferTargetLabels: [], selectedSheriffTransferIndex: 0, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, confirmationPulse: '', identityAssignmentPending: false, identityRole: null, identitySeatCards: [], identityCanConfirm: false, identityProgressText: '', identityProgressPercent: 0, nightActionCards: []
+    voteRecords: [], voteTally: [], sheriffWeight: 1.5, sheriffSeat: null, selfExposeCandidates: [], pendingWolfKingClaw: false, pendingSheriffTransfer: null, sheriffTransferTargets: [], sheriffTransferTargetLabels: [], selectedSheriffTransferIndex: 0, pendingSkill: null, pendingLastWord: null, pendingSkillCanTarget: false, choosingSkillTarget: false, skillTargetLabels: [], selectedSkillTargetIndex: 0, simpleVoteCount: '', dayMessage: '', seatCards: [], voteHistory: [], selectedVoteHistoryIndex: 0, selectedVoteRound: null, selectedVoteRows: [], seatInfo: null, canGoBack: false, confirmationPulse: '', identityAssignmentPending: false, identityRole: null, identitySeatCards: [], identityCanConfirm: false, identityProgressText: '', identityProgressPercent: 0, guidedFirstNight: false, guidedNightActionPending: false, nightFlowProgressText: '', nightActionCards: []
   },
 
   onShow() { this.refresh() },
@@ -28,9 +28,11 @@ Page({
     const lonelyGirlTargetIndex = Math.max(0, lonelyGirlTargets.findIndex(seat => seat.number === lonelyGirlTarget))
     const dayView = game.phase === 'day' ? this.makeDayView(game, board, aliveSeats) : {}
     const inspectionTarget = game.night.seerTarget && game.seats.find(seat => seat.number === game.night.seerTarget)
-    const identityPrompt = engine.getIdentityAssignmentPrompt(game)
+    const guidedFirstNight = Boolean(game.identityAssignmentTiming === 'firstNight' && game.identityAssignment && game.day === 1 && game.phase === 'night')
+    const identityPrompt = engine.getIdentityAssignmentPrompt(game, board)
     const registeredCount = game.seats.filter(seat => seat.roleId).length
-    const nightActionCards = game.phase === 'night' && !identityPrompt ? engine.getNightActionCards(game, board) : []
+    const guidedNightAction = guidedFirstNight && !identityPrompt ? engine.getGuidedFirstNightAction(game, board) : null
+    const nightActionCards = game.phase !== 'night' || identityPrompt ? [] : guidedFirstNight ? (guidedNightAction ? [guidedNightAction] : []) : engine.getNightActionCards(game, board)
     const deathPrompt = game.dayState && game.dayState.stage === 'deathSkills' && game.pendingDeathSkills && game.pendingDeathSkills[0]
     const lastWordPrompt = game.status === 'playing' && game.dayState && game.dayState.stage === 'lastWords' && game.pendingLastWords && game.pendingLastWords[0]
     const sheriffTransferStages = ['deathSkills', 'lastWords', 'discussion', 'exileDone', 'selfExposeNight']
@@ -59,11 +61,14 @@ Page({
       choosingSkillTarget: deathPrompt && this.data.choosingSkillTarget && this.data.pendingSkill && this.data.pendingSkill.number === deathPrompt.seatNumber,
       skillTargetLabels: aliveSeats.map(seat => `${seat.number}号`), selectedSkillTargetIndex: 0,
       identityAssignmentPending: Boolean(identityPrompt),
-      identityRole: identityPrompt ? { id: identityPrompt.roleId, name: identityPrompt.roleName, required: identityPrompt.required, selectedCount: identityPrompt.selectedSeatNumbers.length } : null,
+      identityRole: identityPrompt ? { id: identityPrompt.roleId, name: identityPrompt.roleName, required: identityPrompt.required, selectedCount: identityPrompt.selectedSeatNumbers.length, nextActionName: identityPrompt.actionName } : null,
       identitySeatCards: identityPrompt ? game.seats.map(seat => ({ number: seat.number, roleName: seat.roleName, assigned: Boolean(seat.roleId), selected: identityPrompt.selectedSeatNumbers.includes(seat.number) })) : [],
       identityCanConfirm: Boolean(identityPrompt && identityPrompt.selectedSeatNumbers.length === identityPrompt.required),
       identityProgressText: identityPrompt ? `已确认 ${registeredCount} / ${game.seats.length} 人` : '',
       identityProgressPercent: identityPrompt ? Math.round(registeredCount / game.seats.length * 100) : 100,
+      guidedFirstNight,
+      guidedNightActionPending: Boolean(guidedNightAction),
+      nightFlowProgressText: guidedFirstNight ? (guidedNightAction ? `第 ${game.identityAssignment.actionIndex + 1} / ${board.nightSequence.length} 项` : '身份与行动已完成') : '按顺序照读',
       nightActionCards,
       seatCards, voteHistory, selectedVoteHistoryIndex: voteIndex, selectedVoteRound, selectedVoteRows, canGoBack: Boolean(latestStep),
       ...dayView
@@ -163,6 +168,14 @@ Page({
     if (!this.data.identityCanConfirm) return this.toast(`请选满${this.data.identityRole.required}个号码`)
     this.checkpoint(game, `确认${this.data.identityRole.name}身份`)
     try { engine.completeIdentityAssignment(game, this.data.board) } catch (error) { return this.toast(error.message) }
+    this.saveAndRefresh(game)
+  },
+  completeGuidedNightAction() {
+    const game = this.data.game
+    const card = this.data.nightActionCards[0]
+    if (!card) return
+    this.checkpoint(game, `完成${card.name}`)
+    try { engine.completeGuidedFirstNightAction(game, this.data.board) } catch (error) { return this.toast(error.message) }
     this.saveAndRefresh(game)
   },
   electSheriff(game, number, reason) {

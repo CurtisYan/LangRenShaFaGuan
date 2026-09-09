@@ -19,19 +19,19 @@
 
     <block wx:elif="{{game.phase === 'night'}}">
       <view wx:if="{{identityAssignmentPending}}" class="identity-panel">
-        <view class="identity-heading"><view><view class="eyebrow">第一夜 · 身份确认</view><view class="subtitle">先确认号码身份，再继续同一夜间流程</view></view><text>{{identityProgressText}}</text></view>
+        <view class="identity-heading"><view><view class="eyebrow">第一夜 · 身份确认</view><view class="subtitle">{{identityRole.nextActionName ? '确认后继续：' + identityRole.nextActionName : '确认无主动夜间技能的身份'}}</view></view><text>{{identityProgressText}}</text></view>
         <view class="identity-progress"><view class="identity-progress-fill" style="width: {{identityProgressPercent}}%;"></view></view>
         <block wx:if="{{identityRole}}">
           <view class="identity-script"><view class="identity-role">{{identityRole.name}}</view><view class="identity-prompt">{{identityRole.name}}请睁眼。</view><view class="identity-private">以下内容仅供法官操作，不要念出号码：请选择 {{identityRole.required}} 名{{identityRole.name}}。</view></view>
           <view class="identity-number-grid"><view wx:for="{{identitySeatCards}}" wx:key="number" class="identity-seat tap-surface {{item.selected ? 'selected' : ''}} {{item.assigned ? 'assigned' : ''}}" data-number="{{item.number}}" bindtap="toggleIdentitySeat"><view class="identity-seat-number">{{item.number}}号</view><view class="identity-seat-state">{{item.selected ? '本轮已选' : (item.assigned ? item.roleName : '待确认')}}</view></view></view>
           <view class="identity-selection">本轮已选 {{identityRole.selectedCount}} / {{identityRole.required}} 人</view>
           <button class="primary full-action" disabled="{{!identityCanConfirm}}" bindtap="confirmIdentityRole">确认{{identityRole.name}}身份</button>
-          <view class="identity-tip">这不是另一套夜间模式。身份全部确认后，继续执行当前板子的同一份夜间行动表；最后一种剩余身份由系统自动补齐。</view>
+          <view class="identity-tip">确认当前身份后，有夜间技能就立即操作；没有夜间技能则直接进入下一张身份牌。最后一种剩余身份由系统自动补齐。</view>
         </block>
       </view>
       <block wx:else>
       <view class="night-console">
-        <view class="console-heading"><view><view class="eyebrow">夜间流程</view><view class="subtitle">主持词与行动记录</view></view><view class="console-note">按顺序照读</view></view>
+        <view class="console-heading"><view><view class="eyebrow">夜间流程</view><view class="subtitle">主持词与行动记录</view></view><view class="console-note">{{nightFlowProgressText}}</view></view>
         <view class="host-sheet">
           <view class="host-line main-line"><text class="line-number">01</text><text>天黑请闭眼。</text></view>
           <view wx:for="{{nightActionCards}}" wx:for-item="action" wx:key="id" class="script-step {{index === nightActionCards.length - 1 ? 'last-step' : ''}}">
@@ -50,7 +50,8 @@
           </view>
         </view>
       </view>
-      <button class="primary finish-button" bindtap="finishNight">夜间行动结束，天亮</button>
+      <button wx:if="{{guidedNightActionPending}}" class="primary finish-button" bindtap="completeGuidedNightAction">完成当前行动，进入下一项</button>
+      <button wx:else class="primary finish-button" bindtap="finishNight">夜间行动结束，天亮</button>
       </block>
     </block>
 

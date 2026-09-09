@@ -12,13 +12,40 @@ function wolfKingFresh() { return engine.makeGame(getBoard('wolfKingMagician12')
 function boardRoles(boardId) {
   return Object.entries(getBoard(boardId).roleCounts).flatMap(([roleId, count]) => Array(count).fill(roleId))
 }
-function completeFirstNightIdentities(game, board) {
-  while (!game.identityAssignment.complete) {
-    const prompt = engine.getIdentityAssignmentPrompt(game)
+function completeRequiredAction(game, card) {
+  if (!card.enabled || card.optional) return
+  if (card.kind === 'target') engine.setNightActionTarget(game, card.id, card.targetNumbers[0])
+  if (card.kind === 'multiTarget') card.targetNumbers.slice(0, card.targetCount).forEach(number => engine.toggleNightActionTarget(game, card.id, number, card.targetCount))
+  if (card.kind === 'skillTarget') {
+    engine.setNightActionChoice(game, card.id, card.choiceValues[0])
+    engine.setNightActionTarget(game, card.id, card.targetNumbers[0])
+  }
+}
+function completeGuidedFirstNight(game, board) {
+  let remainingSteps = 100
+  while (!engine.guidedFirstNightReadyToSettle(game, board) && remainingSteps > 0) {
+    remainingSteps -= 1
+    const prompt = engine.getIdentityAssignmentPrompt(game, board)
+    if (prompt) {
+      const available = game.seats.filter(seat => !seat.roleId).slice(0, prompt.required)
+      available.forEach(seat => engine.toggleIdentityAssignmentSeat(game, board, seat.number))
+      engine.completeIdentityAssignment(game, board)
+      continue
+    }
+    const card = engine.getGuidedFirstNightAction(game, board)
+    completeRequiredAction(game, card)
+    engine.completeGuidedFirstNightAction(game, board)
+  }
+  assert.ok(remainingSteps > 0, `${board.name}迷糊法官第一夜不应卡住`)
+}
+function confirmCurrentIdentity(game, board) {
+  const prompt = engine.getIdentityAssignmentPrompt(game, board)
+  if (prompt) {
     const available = game.seats.filter(seat => !seat.roleId).slice(0, prompt.required)
     available.forEach(seat => engine.toggleIdentityAssignmentSeat(game, board, seat.number))
     engine.completeIdentityAssignment(game, board)
   }
+  return prompt
 }
 function resolveAllDeathPrompts(game) {
   while (game.pendingDeathSkills.length) engine.resolveDeathSkill(game, game.pendingDeathSkills[0].seatNumber, false)
@@ -39,8 +66,9 @@ function resolveAllDeathPrompts(game) {
   })
   boards.forEach(board => {
     const game = engine.makeFirstNightIdentityGame(board)
-    completeFirstNightIdentities(game, board)
-    assert.deepEqual(engine.getNightActionCards(game, board).map(card => card.id), board.nightSequence, `${board.name}两种身份确认时机必须复用同一夜间序列`)
+    completeGuidedFirstNight(game, board)
+    assert.equal(game.identityAssignment.complete, true, `${board.name}迷糊法官第一夜结束前应确认全部身份`)
+    assert.equal(game.identityAssignment.actionIndex, board.nightSequence.length, `${board.name}迷糊法官应按配置完成全部夜间行动`)
   })
 }
 
@@ -49,28 +77,30 @@ function resolveAllDeathPrompts(game) {
   const game = engine.makeFirstNightIdentityGame(board)
   assert.equal(game.identityAssignmentTiming, 'firstNight', '迷糊法官只改变身份确认时机')
   assert.equal(game.seats.every(seat => !seat.roleId && seat.roleName === '待确认身份'), true, '第一夜确认身份的开局不应预先生成号码身份')
-  assert.throws(() => engine.settleNight(game), /先完成号码身份确认/, '身份未确认完整时不能结算第一夜')
-  let prompt = engine.getIdentityAssignmentPrompt(game)
+  assert.throws(() => engine.settleNight(game), /按顺序完成身份确认与夜间行动/, '引导流程未完成时不能结算第一夜')
+  let prompt = engine.getIdentityAssignmentPrompt(game, board)
   assert.deepEqual({ name: prompt.roleName, required: prompt.required }, { name: '狼人', required: 4 }, '首轮应按板子人数登记狼人')
   ;[1, 2, 3, 4].forEach(number => engine.toggleIdentityAssignmentSeat(game, board, number))
-  assert.throws(() => engine.toggleIdentityAssignmentSeat(game, board, 5), /只需登记4人/, '不能选取超过板子规定数量的号码')
+  assert.throws(() => engine.toggleIdentityAssignmentSeat(game, board, 5), /只需确认4人/, '不能选取超过板子规定数量的号码')
   engine.completeIdentityAssignment(game, board)
-  while (!game.identityAssignment.complete) {
-    prompt = engine.getIdentityAssignmentPrompt(game)
-    if (prompt) {
-      const available = game.seats.filter(seat => !seat.roleId).slice(0, prompt.required)
-      available.forEach(seat => engine.toggleIdentityAssignmentSeat(game, board, seat.number))
-      engine.completeIdentityAssignment(game, board)
-    }
-  }
-  assert.equal(game.identityAssignment.complete, true, '所有身份确认完成后应解除第一夜行动门槛')
+  assert.equal(engine.getIdentityAssignmentPrompt(game, board), null, '狼人身份确认后应立即进入狼人行动')
+  let action = engine.getGuidedFirstNightAction(game, board)
+  assert.equal(action.id, 'wolves', '确认狼人号码后应立即进行狼人行动')
+  engine.setNightActionTarget(game, 'wolves', 5)
+  engine.completeGuidedFirstNightAction(game, board)
+  prompt = engine.getIdentityAssignmentPrompt(game, board)
+  assert.equal(prompt.roleName, '女巫', '狼人行动完成后才应确认下一张女巫身份')
+  confirmCurrentIdentity(game, board)
+  action = engine.getGuidedFirstNightAction(game, board)
+  assert.equal(action.id, 'witch', '确认女巫号码后应立即进行女巫行动')
+  engine.completeGuidedFirstNightAction(game, board)
+  completeGuidedFirstNight(game, board)
+  assert.equal(game.identityAssignment.complete, true, '全部行动结束前应确认所有号码身份')
   assert.equal(game.seats.every(seat => Boolean(seat.roleId)), true, '号码身份确认完成后每个号码都必须有身份')
   Object.entries(board.roleCounts).forEach(([roleId, count]) => assert.equal(game.seats.filter(seat => seat.roleId === roleId).length, count, `${roleId}人数应符合板子配置`))
-  assert.deepEqual(engine.getNightActionCards(game, board).map(card => card.id), board.nightSequence, '身份确认时机不应改变板子的夜间流程')
+  assert.equal(game.identityAssignment.actionIndex, board.nightSequence.length, '迷糊法官应沿同一夜间序列逐项推进')
   const knownGame = engine.makeGame(board, roles)
   assert.deepEqual(engine.getNightActionCards(knownGame, board).map(card => card.id), board.nightSequence, '提前确认身份也应使用同一份夜间流程')
-  engine.setNightActionTarget(game, 'wolves', 5)
-  engine.setWitchAction(game, 'none')
   engine.settleNight(game)
   assert.equal(game.phase, 'day', '完成同一份第一夜行动后应正常进入白天')
 }

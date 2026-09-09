@@ -107,20 +107,34 @@ app.globalData.game = firstNightIdentityGame
 page.refresh.call(page)
 assert.equal(page.data.identityAssignmentPending, true, '第一夜行动前应先显示号码身份确认')
 assert.equal(page.data.identityRole.name, '狼人', '身份确认卡片应显示当前需要确认的身份')
-while (page.data.identityAssignmentPending) {
+page.data.identitySeatCards.filter(seat => !seat.assigned).slice(0, page.data.identityRole.required).forEach(seat => page.toggleIdentitySeat.call(page, { currentTarget: { dataset: { number: seat.number } } }))
+page.confirmIdentityRole.call(page)
+assert.equal(page.data.identityAssignmentPending, false, '确认狼人号码后不应继续登记下一身份')
+assert.equal(page.data.nightActionCards.length, 1, '迷糊法官每次只应显示当前夜间行动')
+assert.equal(page.data.nightActionCards[0].id, 'wolves', '确认狼人号码后应立即进行狼人行动')
+page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'wolves' } }, detail: { value: 4 } })
+page.completeGuidedNightAction.call(page)
+assert.equal(page.data.identityAssignmentPending, true, '狼人行动完成后才应确认下一张身份牌')
+assert.equal(page.data.identityRole.name, '女巫', '狼人行动后应按板子顺序确认女巫')
+
+let remainingSteps = 30
+while (!engine.guidedFirstNightReadyToSettle(app.globalData.game, board) && remainingSteps > 0) {
+  remainingSteps -= 1
+  if (!page.data.identityAssignmentPending) {
+    page.completeGuidedNightAction.call(page)
+    continue
+  }
   const available = page.data.identitySeatCards.filter(seat => !seat.assigned).slice(0, page.data.identityRole.required)
   available.forEach(seat => page.toggleIdentitySeat.call(page, { currentTarget: { dataset: { number: seat.number } } }))
   assert.equal(page.data.identityCanConfirm, true, '选满当前身份人数后应允许确认')
   page.confirmIdentityRole.call(page)
 }
-assert.equal(app.globalData.game.identityAssignment.complete, true, '确认完全部身份后应继续同一夜间流程')
-assert.equal(app.globalData.game.night.wolfTarget, null, '身份确认不应提前记录任何夜间行动')
-assert.equal(page.data.nightActionCards.length, board.nightSequence.length, '两种身份确认时机应显示同一份板子夜间行动表')
-page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'wolves' } }, detail: { value: 4 } })
-page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'seer' } }, detail: { value: 0 } })
-assert.equal(app.globalData.game.night.wolfTarget, 5, '完整夜间行动表应记录狼人刀口')
-assert.equal(app.globalData.game.night.seerTarget, 1, '完整夜间行动表应记录预言家查验目标')
-assert.equal(page.data.wolfMembers, '1号、2号、3号、4号', '登记完成后应读取已确认的狼人号码')
+assert.ok(remainingSteps > 0, '迷糊法官第一夜页面流程不应卡住')
+assert.equal(app.globalData.game.identityAssignment.complete, true, '逐项行动结束前应确认完全部身份')
+assert.equal(app.globalData.game.night.wolfTarget, 5, '狼人身份确认后紧接的行动应记录刀口')
+assert.equal(page.data.nightActionCards.length, 0, '逐项完成后不应重新显示整张夜间行动表')
+assert.equal(page.data.guidedNightActionPending, false, '逐项完成后应允许直接结算第一夜')
+assert.equal(page.data.wolfMembers, '1号、2号、3号、4号', '确认完成后应读取狼人号码')
 
 const nightGame = engine.makeGame(board, roles)
 app.globalData.game = nightGame

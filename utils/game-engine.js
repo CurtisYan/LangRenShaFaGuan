@@ -1,6 +1,8 @@
 const { roles } = require('../data/roles')
 const { nightActionDefinitions } = require('../data/night-actions')
+const { getBoard } = require('../data/boards')
 const MAX_STEP_HISTORY = 60
+const ISOLATED_WOLVES = new Set(['gargoyle', 'wolfCrowClaw', 'eclipseMaid', 'awakenedHiddenWolf'])
 
 const CAUSE_LABELS = {
   wolfAttack: '狼人袭击', poison: '女巫毒药', exile: '放逐', selfExpose: '狼人自曝',
@@ -116,7 +118,7 @@ function makeGame(board, seatRoles, options = {}) {
     boardId: board.id,
     boardName: board.name,
     identityAssignmentTiming,
-    identityAssignment: identitiesKnown ? null : { complete: false, roleCounts: { ...board.roleCounts }, roleOrder: identityRoleOrder(board), currentIndex: 0, selectedSeatNumbers: [] },
+    identityAssignment: identitiesKnown ? null : { complete: false, roleCounts: { ...board.roleCounts }, actionIndex: 0, selectedSeatNumbers: [] },
     status: 'playing',
     winner: null,
     day: 1,
@@ -146,65 +148,88 @@ function makeFirstNightIdentityGame(board) {
   return makeGame(board, Array(board.playerCount).fill(''), { identityAssignmentTiming: 'firstNight' })
 }
 
-function getIdentityAssignmentPrompt(game) {
-  const state = game.identityAssignment
-  if (game.identityAssignmentTiming !== 'firstNight' || !state || state.complete) return null
-  const roleId = state.roleOrder[state.currentIndex]
-  const role = roles[roleId]
-  if (!role) return null
-  const required = Number(state.roleCounts && state.roleCounts[roleId])
-  return { roleId, roleName: role.name, required: required || 0, selectedSeatNumbers: (state.selectedSeatNumbers || []).slice() }
-}
-
 function normalizeIdentityAssignment(game, board) {
   const state = game.identityAssignment
   if (!state) return null
   if (!state.roleCounts) state.roleCounts = { ...board.roleCounts }
-  if (!Array.isArray(state.roleOrder) || !state.roleOrder.length) state.roleOrder = identityRoleOrder(board)
+  if (!Number.isInteger(state.actionIndex)) state.actionIndex = 0
   if (!Array.isArray(state.selectedSeatNumbers)) state.selectedSeatNumbers = []
   return state
+}
+
+function isGuidedFirstNight(game) {
+  return Boolean(game.identityAssignmentTiming === 'firstNight' && game.identityAssignment && game.day === 1 && game.phase === 'night')
+}
+
+function unresolvedIdentityRoleIds(game, state) {
+  return Object.keys(state.roleCounts).filter(roleId => game.seats.filter(seat => seat.roleId === roleId).length < Number(state.roleCounts[roleId]))
+}
+
+function actionIdentityRoleIds(game, board, actionId) {
+  const boardRoleIds = Object.keys(board.roleCounts)
+  const definition = nightActionDefinitions[actionId]
+  let roleIds = []
+  if (actionId === 'wolves') {
+    roleIds = boardRoleIds.filter(roleId => roles[roleId] && roles[roleId].camp === 'wolf' && !ISOLATED_WOLVES.has(roleId))
+  } else if (definition && definition.roleId && board.roleCounts[definition.roleId]) {
+    roleIds = [definition.roleId]
+  }
+  const actionAvailableThisNight = !(definition && definition.fromDay && game.day < definition.fromDay)
+  if (definition && definition.requiresAllIdentities && actionAvailableThisNight) {
+    const actorRoleIds = roleIds.slice()
+    roleIds = identityRoleOrder(board).filter(roleId => !actorRoleIds.includes(roleId)).concat(actorRoleIds)
+  }
+  return roleIds.filter((roleId, index) => roleIds.indexOf(roleId) === index)
+}
+
+function autoAssignFinalIdentity(game, state) {
+  const unresolved = unresolvedIdentityRoleIds(game, state)
+  if (unresolved.length !== 1) return false
+  const roleId = unresolved[0]
+  const remainingCount = Number(state.roleCounts[roleId]) - game.seats.filter(seat => seat.roleId === roleId).length
+  const remainingSeats = game.seats.filter(seat => !seat.roleId)
+  if (remainingSeats.length !== remainingCount) return false
+  remainingSeats.forEach(seat => { seat.roleId = roleId; seat.roleName = roles[roleId].name })
+  addLog(game, `第一夜身份确认：剩余号码自动确认为${roles[roleId].name}`)
+  state.complete = true
+  addLog(game, '全场号码身份确认完成')
+  return true
+}
+
+function getIdentityAssignmentPrompt(game, board) {
+  const state = normalizeIdentityAssignment(game, board)
+  if (!isGuidedFirstNight(game) || !state || state.complete) return null
+  const actionId = board.nightSequence[state.actionIndex]
+  const orderedRoleIds = actionId ? actionIdentityRoleIds(game, board, actionId) : identityRoleOrder(board)
+  const roleId = orderedRoleIds.find(id => unresolvedIdentityRoleIds(game, state).includes(id))
+  const role = roles[roleId]
+  if (!role) return null
+  const required = Number(state.roleCounts[roleId]) - game.seats.filter(seat => seat.roleId === roleId).length
+  const definition = actionId && nightActionDefinitions[actionId]
+  return { actionId: actionId || null, actionName: definition ? definition.name : '', roleId, roleName: role.name, required, selectedSeatNumbers: state.selectedSeatNumbers.slice() }
 }
 
 function toggleIdentityAssignmentSeat(game, board, seatNumber) {
   const state = normalizeIdentityAssignment(game, board)
   if (game.identityAssignmentTiming !== 'firstNight' || !state || state.complete) throw new Error('当前不在首夜身份确认阶段')
   const seat = game.seats.find(item => item.number === Number(seatNumber))
-  if (!seat || seat.roleId) throw new Error('该号码已经登记了身份')
-  const prompt = getIdentityAssignmentPrompt(game)
+  if (!seat || seat.roleId) throw new Error('该号码已经确认了身份')
+  const prompt = getIdentityAssignmentPrompt(game, board)
   const selected = state.selectedSeatNumbers
   const index = selected.indexOf(seat.number)
   if (index >= 0) selected.splice(index, 1)
   else {
-    if (selected.length >= prompt.required) throw new Error(`${prompt.roleName}只需登记${prompt.required}人`)
+    if (selected.length >= prompt.required) throw new Error(`${prompt.roleName}只需确认${prompt.required}人`)
     selected.push(seat.number)
     selected.sort((a, b) => a - b)
   }
-  return getIdentityAssignmentPrompt(game)
-}
-
-function advanceIdentityAssignment(game, state) {
-  const remainingRoleIds = state.roleOrder.slice(state.currentIndex)
-  if (remainingRoleIds.length === 1) {
-    const finalRoleId = remainingRoleIds[0]
-    const finalRole = roles[finalRoleId]
-    const remainingSeats = game.seats.filter(seat => !seat.roleId)
-    if (remainingSeats.length !== Number(state.roleCounts[finalRoleId])) throw new Error('剩余号码与板子身份数量不一致')
-    remainingSeats.forEach(seat => { seat.roleId = finalRoleId; seat.roleName = finalRole.name })
-    addLog(game, `第一夜身份确认：剩余号码自动确认为${finalRole.name}`)
-    state.currentIndex = state.roleOrder.length
-  }
-  if (state.currentIndex >= state.roleOrder.length) {
-    state.complete = true
-    ensureGameState(game)
-    addLog(game, '号码身份确认完成，继续第一夜行动')
-  }
-  return state.complete
+  return getIdentityAssignmentPrompt(game, board)
 }
 
 function completeIdentityAssignment(game, board) {
   const state = normalizeIdentityAssignment(game, board)
   if (game.identityAssignmentTiming !== 'firstNight' || !state || state.complete) throw new Error('当前不在首夜身份确认阶段')
-  const prompt = getIdentityAssignmentPrompt(game)
+  const prompt = getIdentityAssignmentPrompt(game, board)
   if (prompt.selectedSeatNumbers.length !== prompt.required) throw new Error(`请确认${prompt.required}名${prompt.roleName}`)
   prompt.selectedSeatNumbers.forEach(number => {
     const seat = game.seats.find(item => item.number === number)
@@ -212,9 +237,9 @@ function completeIdentityAssignment(game, board) {
     seat.roleName = prompt.roleName
   })
   addLog(game, `第一夜身份确认：${prompt.roleName}为${prompt.selectedSeatNumbers.map(number => `${number}号`).join('、')}`)
-  state.currentIndex += 1
   state.selectedSeatNumbers = []
-  return advanceIdentityAssignment(game, state)
+  autoAssignFinalIdentity(game, state)
+  return state.complete
 }
 
 function emptyNight() {
@@ -324,8 +349,6 @@ const ACTION_PROMPTS = {
   crow: '选择一名玩家施加诅咒，其下一次放逐投票额外增加一票。',
   dreamer: '必须选择一名其他玩家成为梦游者。'
 }
-
-const ISOLATED_WOLVES = new Set(['gargoyle', 'wolfCrowClaw', 'eclipseMaid', 'awakenedHiddenWolf'])
 
 function activeWolfTeam(game) {
   ensureGameState(game)
@@ -456,6 +479,41 @@ function getNightActionCards(game, board) {
       resourceText: actionId === 'witch' ? `解药：${game.resources.antidote ? '可用' : '已用'}　毒药：${game.resources.poison ? '可用' : '已用'}` : ''
     }
   })
+}
+
+function getGuidedFirstNightAction(game, board) {
+  if (!isGuidedFirstNight(game)) return null
+  const state = normalizeIdentityAssignment(game, board)
+  if (getIdentityAssignmentPrompt(game, board)) return null
+  const actionId = board.nightSequence[state.actionIndex]
+  if (!actionId) return null
+  return getNightActionCards(game, board).find(card => card.id === actionId) || null
+}
+
+function requiredNightActionIncomplete(card) {
+  if (!card || !card.enabled || card.optional) return false
+  if (card.kind === 'target') return !card.selectedTarget
+  if (card.kind === 'multiTarget') return card.targets.length !== card.targetCount
+  if (card.kind === 'skillTarget') return !card.choice || !card.selectedTarget
+  return false
+}
+
+function completeGuidedFirstNightAction(game, board) {
+  if (!isGuidedFirstNight(game)) throw new Error('当前不在迷糊法官第一夜流程')
+  if (getIdentityAssignmentPrompt(game, board)) throw new Error('请先确认当前身份号码')
+  const state = normalizeIdentityAssignment(game, board)
+  const card = getGuidedFirstNightAction(game, board)
+  if (!card) throw new Error('当前没有待完成的夜间行动')
+  if (requiredNightActionIncomplete(card)) throw new Error(`请先完成${card.name}`)
+  state.actionIndex += 1
+  addLog(game, `第一夜流程：${card.name}完成`)
+  return state.actionIndex
+}
+
+function guidedFirstNightReadyToSettle(game, board) {
+  if (!isGuidedFirstNight(game)) return true
+  const state = normalizeIdentityAssignment(game, board)
+  return Boolean(state.complete && state.actionIndex >= board.nightSequence.length)
 }
 
 function getWolfTeamNumbers(game) {
@@ -645,7 +703,7 @@ function effectiveActionTarget(game, actionId, actor, isGoodSkill = false) {
 
 function settleNight(game) {
   ensureGameState(game)
-  if (game.identityAssignmentTiming === 'firstNight' && game.identityAssignment && !game.identityAssignment.complete) throw new Error('请先完成号码身份确认')
+  if (isGuidedFirstNight(game) && !guidedFirstNightReadyToSettle(game, getBoard(game.boardId))) throw new Error('请按顺序完成身份确认与夜间行动')
   ensureLonelyGirlTarget(game)
   const boardActions = Object.keys(game.night.actions || {})
   if (!boardActions.length) {
@@ -1038,4 +1096,4 @@ function evaluateWinner(game) {
   return winner
 }
 
-module.exports = { makeGame, makeFirstNightIdentityGame, getIdentityAssignmentPrompt, toggleIdentityAssignmentSeat, completeIdentityAssignment, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }
+module.exports = { makeGame, makeFirstNightIdentityGame, getIdentityAssignmentPrompt, toggleIdentityAssignmentSeat, completeIdentityAssignment, getGuidedFirstNightAction, completeGuidedFirstNightAction, guidedFirstNightReadyToSettle, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }

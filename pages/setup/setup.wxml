@@ -13,7 +13,7 @@
 
   <view class="first-night-identity-card tap-surface" bindtap="startFirstNightIdentityGame">
     <view class="identity-entry-top"><view><view class="identity-entry-kicker">迷糊法官模式</view><view class="identity-entry-title">第一夜确认身份</view></view><text class="identity-entry-arrow">›</text></view>
-    <view class="identity-entry-copy">适合身份牌已经随机发给玩家、法官开局还不知道各号码身份的情况。点击后进入同一个第一夜流程：先确认全场号码身份，再执行当前板子的夜间行动表。</view>
+    <view class="identity-entry-copy">适合身份牌已经随机发给玩家、法官开局还不知道各号码身份的情况。点击后进入第一夜，按板子顺序依次确认当前身份、立即操作，再进入下一张身份牌。</view>
     <view class="identity-entry-note">无需在本页配置号码，也不会覆盖下方已有的身份草稿。</view>
   </view>
 
