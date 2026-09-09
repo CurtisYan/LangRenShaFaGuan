@@ -86,8 +86,9 @@ Page({
     const voters = isSheriffVote ? votingSeats.filter(seat => state.sheriffPk ? !state.sheriffCandidates.includes(seat.number) : !state.sheriffInitialCandidates.includes(seat.number) && !state.sheriffWithdrawn.includes(seat.number)) : isExileVote && state.exileMode === 'individual' ? votingSeats.filter(seat => !state.exilePk || !state.exileTieCandidates.includes(seat.number)) : []
     const targets = isSheriffVote ? state.sheriffCandidates : isExileVote && state.exilePk ? state.exileTieCandidates : votingSeats.map(seat => seat.number)
     const targetLabels = targets.map(number => `${number}号`).concat(isSheriffVote || isExileVote ? ['弃票'] : [])
-    const voteMap = isSheriffVote ? state.sheriffVotes : state.exileVotes
-    const tally = this.tallyVotes(voteMap, game.sheriffSeat)
+    const isSimpleExileVote = isExileVote && state.exileMode === 'simple'
+    const voteMap = isSheriffVote ? state.sheriffVotes : isSimpleExileVote ? (state.simpleVoteCounts || {}) : state.exileVotes
+    const tally = isSimpleExileVote ? { ...voteMap } : this.tallyVotes(voteMap, game.sheriffSeat)
     if (isExileVote && game.special.crowTarget && votingSeats.some(seat => seat.number === game.special.crowTarget)) tally[game.special.crowTarget] = (tally[game.special.crowTarget] || 0) + 1
     const voteRecords = this.groupVoteRecords(voters, voteMap, game.sheriffSeat)
     const selfExposeCandidates = state.stage === 'orderPrinceSpeech' ? [] : aliveSeats.filter(seat => roles[seat.roleId] && roles[seat.roleId].canSelfExpose && (board.dayRules.selfExposeRoleIds || []).includes(seat.roleId)).map(seat => ({ number: seat.number, name: seat.roleName }))

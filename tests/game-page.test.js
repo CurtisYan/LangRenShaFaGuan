@@ -161,8 +161,13 @@ exileFlowGame.sheriffElectionDone = true
 exileFlowGame.dayState = engine.createDayState(exileFlowGame)
 exileFlowGame.dayState.stage = 'exileVote'
 exileFlowGame.dayState.exileMode = 'simple'
-exileFlowGame.dayState.simpleVoteCounts = { 5: 4 }
 app.globalData.game = exileFlowGame
+page.refresh.call(page)
+page.setData({ selectedVoteTargetIndex: 1, simpleVoteCount: '3' })
+page.recordSimpleVote.call(page)
+assert.equal(app.globalData.game.dayState.simpleVoteCounts[2], 3, '简易计票应保存2号获得的票数')
+assert.deepEqual(page.data.voteTally, [{ number: '2', value: 3 }], '简易计票记录后应立即在当前统计中显示')
+app.globalData.game.dayState.simpleVoteCounts = { 5: 4 }
 page.refresh.call(page)
 page.resolveExileVote.call(page)
 assert.equal(app.globalData.game.dayState.stage, 'deathSkills', '白天放逐后应先进入统一的出局技能询问')
