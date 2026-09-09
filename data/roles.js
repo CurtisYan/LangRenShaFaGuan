@@ -20,7 +20,19 @@ const roles = {
   crow: { id: 'crow', name: '乌鸦', camp: 'good', group: '神职' },
   dreamer: { id: 'dreamer', name: '摄梦人', camp: 'good', group: '神职' },
   lonelyGirl: { id: 'lonelyGirl', name: '孤独少女', camp: 'good', group: '神职' },
-  cursedFox: { id: 'cursedFox', name: '咒狐', camp: 'third', group: '第三方' }
+  cursedFox: { id: 'cursedFox', name: '咒狐', camp: 'third', group: '第三方' },
+  miracleMerchant: { id: 'miracleMerchant', name: '奇迹商人', camp: 'good', group: '神职' },
+  timeWolfConsort: { id: 'timeWolfConsort', name: '蚀时狼妃', camp: 'wolf', group: '狼人', canSelfExpose: true },
+  orderPrince: { id: 'orderPrince', name: '定序王子', camp: 'good', group: '神职' },
+  wolfWitch: { id: 'wolfWitch', name: '狼巫', camp: 'wolf', group: '狼人', canSelfExpose: true },
+  pureWhiteGirl: { id: 'pureWhiteGirl', name: '纯白之女', camp: 'good', group: '神职' },
+  wolfCrowClaw: { id: 'wolfCrowClaw', name: '狼鸦之爪', camp: 'wolf', group: '狼人', canSelfExpose: false },
+  alchemistWitch: { id: 'alchemistWitch', name: '炼金魔女', camp: 'good', group: '神职' },
+  eclipseMaid: { id: 'eclipseMaid', name: '蚀日侍女', camp: 'wolf', group: '狼人', canSelfExpose: false },
+  radiantCount: { id: 'radiantCount', name: '流光伯爵', camp: 'good', group: '神职' },
+  awakenedWolfKing: { id: 'awakenedWolfKing', name: '觉醒狼王', camp: 'wolf', group: '狼人', canSelfExpose: true, deathSkill: 'awakenedClaw' },
+  awakenedHiddenWolf: { id: 'awakenedHiddenWolf', name: '觉醒隐狼', camp: 'wolf', group: '狼人', canSelfExpose: false },
+  mirrorGirl: { id: 'mirrorGirl', name: '魔镜少女', camp: 'good', group: '神职' }
 }
 
 module.exports = { roles }

@@ -1,1 +1,10 @@
-.role-list-page { padding-top: 50rpx; }.role-list-hero { margin: 0 5rpx 42rpx; }.role-list { border-top: 1rpx solid #d9dad2; }.role-list-row { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; min-height: 88rpx; padding: 18rpx 2rpx; border-bottom: 1rpx solid #d9dad2; }.role-title { display: flex; align-items: center; gap: 9rpx; color: #303a33; font-size: 29rpx; font-weight: 600; }.tag { padding: 4rpx 10rpx; border-radius: 999rpx; font-size: 19rpx; font-weight: 500; }.wolf-tag { color: #86413c; background: #f4e7e5; }.villager-tag { color: #486982; background: #e8f0f4; }.god-tag { color: #7d5f28; background: #f5eddc; }.third-tag { color: #73598b; background: #eee9f4; }.role-enter { color: #64766b; font-size: 39rpx; font-weight: 300; }
+.role-list-page { padding-top: 50rpx; }
+.role-list-hero { margin: 0 5rpx 42rpx; }
+.role-list-row { display: flex; min-height: 88rpx; align-items: center; justify-content: space-between; gap: 20rpx; padding: 18rpx 2rpx; }
+.role-title { display: flex; align-items: center; gap: 9rpx; color: var(--color-ink); font-size: 30rpx; font-weight: 600; }
+.role-title .tag { min-height: 30rpx; margin: 0; padding: 4rpx 10rpx; font-size: 20rpx; font-weight: 500; }
+.wolf-tag { color: var(--color-wolf); background: var(--color-wolf-soft); }
+.villager-tag { color: var(--color-villager); background: var(--color-villager-soft); }
+.god-tag { color: var(--color-god); background: var(--color-god-soft); }
+.third-tag { color: var(--color-third); background: var(--color-third-soft); }
+.role-enter { color: var(--color-accent); font-size: 38rpx; font-weight: 300; }

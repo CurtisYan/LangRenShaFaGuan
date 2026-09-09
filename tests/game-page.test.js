@@ -1,11 +1,18 @@
 const assert = require('assert')
+const fs = require('fs')
+const path = require('path')
 const { getBoard } = require('../data/boards')
 const engine = require('../utils/game-engine')
+
+const gameTemplate = fs.readFileSync(path.join(__dirname, '../pages/game/game.wxml'), 'utf8')
+assert.equal(gameTemplate.includes('请{{registrationRole.name}}玩家睁眼'), false, '身份登记主持词不应出现生硬的“请某身份玩家睁眼”')
+assert.equal(gameTemplate.includes('{{registrationRole.name}}请睁眼'), true, '身份登记主持词应使用“某身份请睁眼”')
 
 let page
 global.Page = config => { page = config }
 const navigations = []
-global.wx = { showToast() {}, redirectTo() {}, navigateTo({ url }) { navigations.push(url) } }
+const toastMessages = []
+global.wx = { showToast({ title }) { toastMessages.push(title) }, redirectTo() {}, navigateTo({ url }) { navigations.push(url) } }
 require('../pages/game/game')
 
 page.setData = function setData(update, callback) {
@@ -70,8 +77,14 @@ page._holdKey = 'back'
 let backTriggerCount = 0
 const originalGoBackStep = page.goBackStep
 page.goBackStep = () => { backTriggerCount += 1 }
+page.data.canGoBack = true
+page.startHold.call(page, { currentTarget: { dataset: { holdKey: 'back' } } })
+page.endHold.call(page, { currentTarget: { dataset: { holdKey: 'back' } } })
+assert.equal(toastMessages.pop(), '请长按返回上一步', '短按返回按钮应提示需要长按')
+page.startHold.call(page, { currentTarget: { dataset: { holdKey: 'back' } } })
 page.completeHold.call(page, { currentTarget: { dataset: { holdKey: 'back' } } })
 assert.equal(backTriggerCount, 1, '返回按钮放大完成时应立即执行返回')
+assert.equal(toastMessages.length, 0, '长按返回成功时不应显示长按提示')
 page.goBackStep = originalGoBackStep
 
 let withdrawnNumber = null
@@ -82,10 +95,32 @@ assert.equal(page.data.confirmationPulse, 'withdraw-2', '按下退水号码牌�
 page.endHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
 assert.equal(page.data.confirmationPulse, '', '未按满时松手应取消退水并恢复号码牌')
 assert.equal(withdrawnNumber, null, '短按退水号码牌不应误触发退水')
+assert.equal(toastMessages.pop(), '请长按号码退水', '短按退水号码牌应提示需要长按')
 page.startHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
 page.completeHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
 assert.equal(withdrawnNumber, 2, '退水按钮放大完成时应立即执行退水')
+assert.equal(toastMessages.length, 0, '长按退水成功时不应显示长按提示')
 page.withdrawSheriffCandidate = originalWithdraw
+
+const blindGame = engine.makeBlindGame(board)
+app.globalData.game = blindGame
+page.refresh.call(page)
+assert.equal(page.data.isBlindRegistration, true, '线下发牌进入第一夜后应先显示身份登记卡片')
+assert.equal(page.data.registrationRole.name, '狼人', '身份登记卡片应显示当前需要确认的身份')
+while (page.data.isBlindRegistration) {
+  const available = page.data.registrationSeatCards.filter(seat => !seat.assigned).slice(0, page.data.registrationRole.required)
+  available.forEach(seat => page.toggleRegistrationSeat.call(page, { currentTarget: { dataset: { number: seat.number } } }))
+  assert.equal(page.data.registrationCanConfirm, true, '选满当前身份人数后应允许确认')
+  page.confirmRegistrationRole.call(page)
+}
+assert.equal(app.globalData.game.identityRegistration.complete, true, '登记完全部身份后应结束首夜登记')
+assert.equal(app.globalData.game.night.wolfTarget, null, '身份登记阶段不应提前记录任何首夜行动')
+assert.equal(page.data.nightActionCards.length, board.nightActions.length, '登记完成后应显示完整的板子夜间行动表')
+page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'wolves' } }, detail: { value: 4 } })
+page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'seer' } }, detail: { value: 0 } })
+assert.equal(app.globalData.game.night.wolfTarget, 5, '完整夜间行动表应记录狼人刀口')
+assert.equal(app.globalData.game.night.seerTarget, 1, '完整夜间行动表应记录预言家查验目标')
+assert.equal(page.data.wolfMembers, '1号、2号、3号、4号', '登记完成后应读取已确认的狼人号码')
 
 const nightGame = engine.makeGame(board, roles)
 app.globalData.game = nightGame
@@ -105,6 +140,42 @@ assert.equal(app.globalData.game.night.wolfTarget, nightTarget, '从白天返回
 page.goBackStep.call(page)
 assert.equal(app.globalData.game.night.wolfTarget, null, '黑夜返回应恢复记录目标前的状态')
 assert.equal(page.data.canGoBack, false, '恢复第一夜初始状态后应再次隐藏返回按钮')
+
+const exileFlowGame = engine.makeGame(board, roles)
+exileFlowGame.phase = 'day'
+exileFlowGame.sheriffElectionDone = true
+exileFlowGame.dayState = engine.createDayState(exileFlowGame)
+exileFlowGame.dayState.stage = 'exileVote'
+exileFlowGame.dayState.exileMode = 'simple'
+exileFlowGame.dayState.simpleVoteCounts = { 5: 4 }
+app.globalData.game = exileFlowGame
+page.refresh.call(page)
+page.resolveExileVote.call(page)
+assert.equal(app.globalData.game.dayState.stage, 'deathSkills', '白天放逐后应先进入统一的出局技能询问')
+assert.equal(page.data.pendingSkill.number, 5, '被放逐玩家即使无法发动技能也必须完成询问')
+page.declineDeathSkill.call(page)
+assert.equal(page.data.pendingLastWord.number, 5, '胜负未定时，出局技能结算后应继续被放逐玩家的遗言')
+page.nextLastWord.call(page)
+assert.equal(app.globalData.game.dayState.stage, 'exileDone', '放逐遗言结束后应回到放逐结算阶段')
+
+const sheriffTransferGame = engine.makeGame(board, roles)
+sheriffTransferGame.phase = 'day'
+sheriffTransferGame.sheriffSeat = 5
+sheriffTransferGame.sheriffElectionDone = true
+sheriffTransferGame.dayState = engine.createDayState(sheriffTransferGame)
+sheriffTransferGame.dayState.stage = 'deathSkills'
+engine.applyDayEvent(sheriffTransferGame, 'shot', 5)
+app.globalData.game = sheriffTransferGame
+page.refresh.call(page)
+assert.equal(page.data.pendingSheriffTransfer, null, '警长出局后应先完成出局技能询问')
+assert.equal(page.data.pendingSkill.number, 5, '警徽传承前应显示该玩家的出局技能询问')
+page.declineDeathSkill.call(page)
+assert.equal(page.data.pendingSheriffTransfer.number, 5, '技能结算且胜负未定时才应显示警徽结算')
+assert.equal(page.data.sheriffTransferTargets.some(seat => seat.number === 5), false, '原警长不能成为警徽移交目标')
+const transferTarget = page.data.sheriffTransferTargets[0]
+page.transferSheriffBadge.call(page)
+assert.equal(app.globalData.game.sheriffSeat, transferTarget.number, '确认移交后页面应保存新警长')
+assert.equal(app.globalData.game.pendingSheriffTransfer, null, '完成移交后页面应结束警徽结算')
 page.openBoardDetail.call(page)
 assert.equal(navigations[0], '/pages/board-detail/board-detail?boardId=standard12', '顶部板子名应跳转至对应板子说明')
 

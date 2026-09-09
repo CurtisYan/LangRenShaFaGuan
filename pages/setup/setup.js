@@ -1,6 +1,6 @@
 const { getBoard } = require('../../data/boards')
 const { roles } = require('../../data/roles')
-const { makeGame } = require('../../utils/game-engine')
+const { makeGame, makeBlindGame } = require('../../utils/game-engine')
 
 Page({
   data: { board: null, seats: [], mode: 'role', selectedRoleId: '', selectedSeatNumber: 1, roleGroups: [], numberCards: [], summaryItems: [], assignedCount: 0, error: '' },
@@ -75,8 +75,10 @@ Page({
     const roleIds = Object.keys(board.roleCounts)
     const selectedSeat = seats.find(item => item.number === selectedSeatNumber)
     const makeRole = roleId => {
+      const role = roles[roleId]
       const numbers = seats.filter(item => item.roleId === roleId).map(item => item.number)
-      return { id: roleId, name: roles[roleId].name, tone: roles[roleId].camp, capacity: board.roleCounts[roleId], count: numbers.length, assignedText: numbers.length ? numbers.map(number => `${number}号`).join('、') : '未选号码', selected: roleId === selectedRoleId, selectedForSeat: selectedSeat && selectedSeat.roleId === roleId }
+      const tone = role.camp === 'wolf' ? 'wolf' : role.group === '平民' ? 'villager' : role.group === '神职' ? 'god' : 'third'
+      return { id: roleId, name: role.name, tone, capacity: board.roleCounts[roleId], count: numbers.length, assignedText: numbers.length ? numbers.map(number => `${number}号`).join('、') : '未选号码', selected: roleId === selectedRoleId, selectedForSeat: selectedSeat && selectedSeat.roleId === roleId }
     }
     const roleGroups = [
       { name: '狼人阵营', tone: 'wolf', items: roleIds.filter(id => roles[id].camp === 'wolf').map(makeRole) },
@@ -91,6 +93,11 @@ Page({
   saveDraft() {
     const { board, mode, seats } = this.data
     if (board) wx.setStorageSync(`setupDraft_${board.id}`, { mode, seatRoles: seats.map(item => item.roleId) })
+  },
+
+  startBlindGame() {
+    getApp().saveGame(makeBlindGame(this.data.board))
+    wx.redirectTo({ url: '/pages/game/game' })
   },
 
   startGame() {

@@ -5,7 +5,7 @@
     <view class="home-intro">主持词、流程与对局记录，只留给桌前的法官。</view>
   </view>
 
-  <view wx:if="{{currentGame}}" class="resume-panel">
+  <view wx:if="{{currentGame}}" class="resume-panel surface-card">
     <view class="resume-topline"><text>进行中的对局</text><text class="resume-phase">第{{currentGame.day}}{{currentGame.phase === 'night' ? '夜' : '天'}}</text></view>
     <view class="resume-board">{{currentGame.boardName}}</view>
     <view wx:if="{{currentGame.winner}}" class="success">{{currentGame.winner}}已获胜</view>
@@ -17,16 +17,16 @@
 
   <view class="section-heading">
     <view><view class="eyebrow">开始新的一局</view><view class="subtitle">选择板子</view></view>
-    <view class="board-count">{{boards.length}} 个板子</view>
+    <view class="board-count"><text class="board-count-number">{{boards.length}}</text><text>个板子</text></view>
   </view>
   <scroll-view scroll-y class="board-scroll" enhanced show-scrollbar="false">
-    <view class="board-list">
-      <view wx:for="{{boards}}" wx:key="id" class="board-row" data-id="{{item.id}}" bindtap="chooseBoard">
+    <view class="board-list list-stack">
+      <view wx:for="{{boards}}" wx:key="id" class="board-row list-row-base tap-surface" data-id="{{item.id}}" bindtap="chooseBoard">
         <view class="board-main"><view class="board-name">{{item.name}}</view><view class="board-summary">{{item.summary}}</view></view>
-        <view class="board-side"><view>{{item.playerCount}} 人</view><view class="board-enter">配置身份　›</view></view>
+        <view class="board-side"><view>{{item.playerCount}} 人</view><view class="board-enter">›</view></view>
       </view>
     </view>
   </scroll-view>
 
-  <view class="rule-entry" bindtap="openRules"><view><view class="eyebrow">资料库</view><view class="subtitle">板子规则与角色说明</view></view><view class="rule-entry-side"><text>打开</text><text>›</text></view></view>
+  <view class="rule-entry tap-surface" bindtap="openRules"><view class="rule-entry-copy"><view class="eyebrow">资料索引</view><view class="subtitle">板子规则 / 角色说明</view><view class="rule-entry-note">完整配置、角色技能与常见问答</view></view><view class="rule-entry-side"><text>查看</text><text class="rule-entry-arrow">→</text></view></view>
 </view>

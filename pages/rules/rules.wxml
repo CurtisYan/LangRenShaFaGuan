@@ -1,5 +1,5 @@
 <view class="page rules-page">
   <view class="rules-hero"><view class="eyebrow">法官资料库</view><view class="title">规则手册</view></view>
-  <view class="library-card board-library" bindtap="openBoardCatalog"><view><view class="library-meta">板子 · {{boardCount}} 个</view><view class="library-title">板子规则</view></view><text class="library-enter">›</text></view>
-  <view class="library-card role-library" bindtap="openRoleCatalog"><view><view class="library-meta">角色 · {{roleCount}} 张</view><view class="library-title">角色说明</view></view><text class="library-enter">›</text></view>
+  <view class="library-card surface-card tap-surface board-library" bindtap="openBoardCatalog"><view><view class="library-meta">板子 · {{boardCount}} 个</view><view class="library-title">板子规则</view></view><text class="library-enter">›</text></view>
+  <view class="library-card surface-card tap-surface role-library" bindtap="openRoleCatalog"><view><view class="library-meta">角色 · {{roleCount}} 张</view><view class="library-title">角色说明</view></view><text class="library-enter">›</text></view>
 </view>
