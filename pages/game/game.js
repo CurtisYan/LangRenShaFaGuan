@@ -94,7 +94,7 @@ Page({
     const selfExposeCandidates = state.stage === 'orderPrinceSpeech' ? [] : aliveSeats.filter(seat => roles[seat.roleId] && roles[seat.roleId].canSelfExpose && (board.dayRules.selfExposeRoleIds || []).includes(seat.roleId)).map(seat => ({ number: seat.number, name: seat.roleName }))
     const sheriffSignupSeats = votingSeats.map(seat => ({ number: seat.number, selected: state.sheriffCandidates.includes(seat.number) }))
     const sheriffWithdrawalSeats = state.sheriffCandidates.map(number => ({ number }))
-    return { dayState: state, dayStageLabel: dayStageLabels[state.stage] || '白天流程', sheriffCandidates: state.sheriffCandidates.map(number => `${number}号`), sheriffCandidateText: state.sheriffCandidates.map(number => `${number}号`).join('、'), sheriffSignupSeats, sheriffWithdrawalSeats, dayVoters: voters.map(seat => ({ ...seat, selected: false })), voteTargets: targets.concat([null]), voteTargetLabels: targetLabels, voteRecords, voteTally: this.tallyRows(tally), sheriffWeight: board.dayRules.sheriffVoteWeight, sheriffSeat: game.sheriffSeat, selfExposeCandidates, pendingWolfKingClaw: game.pendingWolfKingClaw, knightAvailable: ['discussion', 'alchemistDiscussion'].includes(state.stage) && engine.roleAlive(game, 'knight') && !game.special.knightUsed, selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0, dayMessage: state.message || '', nightDeathText: this.nightDeathText(game), alchemistWolfTarget: game.special.alchemistWitch.pendingWolfTarget }
+    return { dayState: state, dayStageLabel: dayStageLabels[state.stage] || '白天流程', sheriffCandidates: state.sheriffCandidates.map(number => `${number}号`), sheriffCandidateText: state.sheriffCandidates.map(number => `${number}号`).join('、'), sheriffSignupSeats, sheriffWithdrawalSeats, dayVoters: voters.map(seat => ({ ...seat, selected: false, voted: isSheriffVote && Object.prototype.hasOwnProperty.call(state.sheriffVotes, seat.number) })), voteTargets: targets.concat([null]), voteTargetLabels: targetLabels, voteRecords, voteTally: this.tallyRows(tally), sheriffWeight: board.dayRules.sheriffVoteWeight, sheriffSeat: game.sheriffSeat, selfExposeCandidates, pendingWolfKingClaw: game.pendingWolfKingClaw, knightAvailable: ['discussion', 'alchemistDiscussion'].includes(state.stage) && engine.roleAlive(game, 'knight') && !game.special.knightUsed, selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0, dayMessage: state.message || '', nightDeathText: this.nightDeathText(game), alchemistWolfTarget: game.special.alchemistWitch.pendingWolfTarget }
   },
 
   tallyVotes(votes, sheriffSeat) {
@@ -346,6 +346,8 @@ Page({
   selectDayVoter(event) {
     const index = Number(event.currentTarget.dataset.index)
     const state = this.data.dayState
+    const voter = this.data.dayVoters[index]
+    if (state.stage === 'sheriffVote' && voter && voter.voted) return this.toast(`${voter.number}号已经投过票`)
     const supportsMultiSelect = state.stage === 'sheriffVote' || (state.stage === 'exileVote' && state.exileMode === 'individual')
     if (!supportsMultiSelect) return this.setData({ selectedVoterIndex: index })
     const selected = this.data.selectedVoterIndices.slice(); const found = selected.indexOf(index)
@@ -360,6 +362,7 @@ Page({
     const supportsMultiSelect = state.stage === 'sheriffVote' || (state.stage === 'exileVote' && state.exileMode === 'individual')
     const voters = supportsMultiSelect ? this.data.selectedVoterIndices.map(index => this.data.dayVoters[index]) : [this.data.dayVoters[this.data.selectedVoterIndex]]
     if (!voters.length || voters.some(item => !item)) return this.toast('请选择投票玩家')
+    if (state.stage === 'sheriffVote' && voters.some(voter => Object.prototype.hasOwnProperty.call(state.sheriffVotes, voter.number))) return this.toast('所选玩家中有人已经投过票')
     this.checkpoint(this.data.game, state.stage === 'sheriffVote' ? '记录警长投票' : '记录放逐投票')
     const map = state.stage === 'sheriffVote' ? state.sheriffVotes : state.exileVotes
     voters.forEach(voter => { map[voter.number] = target })
@@ -398,12 +401,25 @@ Page({
   inputSimpleVoteCount(event) { this.setData({ simpleVoteCount: event.detail.value }) },
   recordSimpleVote() { const number = this.data.voteTargets[this.data.selectedVoteTargetIndex]; const count = Number(this.data.simpleVoteCount); if (!number || !Number.isFinite(count) || count < 0) return this.toast('请输入有效票数'); this.checkpoint(this.data.game, '记录放逐票数'); this.data.game.dayState.simpleVoteCounts[number] = count; this.setData({ simpleVoteCount: '' }); this.saveAndRefresh(this.data.game) },
   resolveExileVote() {
-    const game = this.data.game; const state = game.dayState; const tally = state.exileMode === 'individual' ? this.tallyVotes(state.exileVotes, game.sheriffSeat) : { ...state.simpleVoteCounts }; if (game.special.crowTarget && game.seats.some(seat => seat.alive && !seat.foolRevealed && seat.number === game.special.crowTarget)) tally[game.special.crowTarget] = (tally[game.special.crowTarget] || 0) + 1; const rows = this.tallyRows(tally)
-    if (!rows.length) return this.toast('请先记录票数')
+    const game = this.data.game
+    const state = game.dayState
+    const isIndividual = state.exileMode === 'individual'
+    const eligibleVoters = isIndividual ? game.seats.filter(seat => seat.alive && !seat.foolRevealed && (!state.exilePk || !state.exileTieCandidates.includes(seat.number))).map(seat => seat.number) : []
+    const tally = isIndividual ? this.tallyVotes(state.exileVotes, game.sheriffSeat) : { ...state.simpleVoteCounts }
+    if (game.special.crowTarget && game.seats.some(seat => seat.alive && !seat.foolRevealed && seat.number === game.special.crowTarget)) tally[game.special.crowTarget] = (tally[game.special.crowTarget] || 0) + 1
+    const rows = this.tallyRows(tally)
+    if (!rows.length && !isIndividual) return this.toast('请先记录票数')
     this.checkpoint(game, state.exilePk ? '统计放逐PK票' : '统计放逐票')
+    eligibleVoters.forEach(number => {
+      if (!Object.prototype.hasOwnProperty.call(state.exileVotes, number)) state.exileVotes[number] = null
+    })
+    engine.addVoteHistory(game, { label: state.exilePk ? '放逐PK投票' : '放逐投票', votes: isIndividual ? state.exileVotes : {}, eligibleVoters, tally: this.tallyRows(tally), sheriffSeat: game.sheriffSeat })
+    if (!rows.length) {
+      engine.applyDayEvent(game, 'none')
+      state.stage = 'exileDone'
+      return this.saveAndRefresh(game)
+    }
     const max = Math.max(...rows.map(row => row.value)); const winners = rows.filter(row => row.value === max).map(row => Number(row.number))
-    const eligibleVoters = state.exileMode === 'individual' ? game.seats.filter(seat => seat.alive && (!state.exilePk || !state.exileTieCandidates.includes(seat.number))).map(seat => seat.number) : []
-    engine.addVoteHistory(game, { label: state.exilePk ? '放逐PK投票' : '放逐投票', votes: state.exileMode === 'individual' ? state.exileVotes : {}, eligibleVoters, tally: this.tallyRows(tally), sheriffSeat: game.sheriffSeat })
     if (winners.length > 1) { state.stage = 'exileTie'; state.exileTieCandidates = winners; state.exilePk = true; state.message = `放逐投票平票：${winners.map(n => `${n}号`).join('、')}`; return this.saveAndRefresh(game) }
     if (!state.exilePk && engine.canUseOrderPrince(game)) {
       state.pendingExileSeat = winners[0]

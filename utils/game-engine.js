@@ -177,7 +177,7 @@ function actionIdentityRoleIds(game, board, actionId) {
   const actionAvailableThisNight = !(definition && definition.fromDay && game.day < definition.fromDay)
   if (definition && definition.requiresAllIdentities && actionAvailableThisNight) {
     const actorRoleIds = roleIds.slice()
-    roleIds = identityRoleOrder(board).filter(roleId => !actorRoleIds.includes(roleId)).concat(actorRoleIds)
+    roleIds = identityRoleOrder(board).filter(roleId => roleId !== 'villager' && !actorRoleIds.includes(roleId)).concat(actorRoleIds)
   }
   return roleIds.filter((roleId, index) => roleIds.indexOf(roleId) === index)
 }

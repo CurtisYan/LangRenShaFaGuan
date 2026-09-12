@@ -27,6 +27,7 @@ function completeGuidedFirstNight(game, board) {
     remainingSteps -= 1
     const prompt = engine.getIdentityAssignmentPrompt(game, board)
     if (prompt) {
+      assert.notEqual(prompt.roleId, 'villager', `${board.name}迷糊法官模式不应要求平民睁眼`)
       const available = game.seats.filter(seat => !seat.roleId).slice(0, prompt.required)
       available.forEach(seat => engine.toggleIdentityAssignmentSeat(game, board, seat.number))
       engine.completeIdentityAssignment(game, board)

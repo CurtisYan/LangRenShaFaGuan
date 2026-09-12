@@ -60,6 +60,21 @@ assert.deepEqual(groupedVotes, [
 ], '投票记录应按投向归组，并保留警长票标记')
 
 app.globalData.game.dayState = {
+  stage: 'sheriffVote', sheriffCandidates: [1, 2], sheriffInitialCandidates: [1, 2], sheriffWithdrawn: [], sheriffVotes: { 3: 1 },
+  exileMode: 'individual', exileVotes: {}, simpleVoteCounts: {}, sheriffPk: false
+}
+page.refresh.call(page)
+const recordedSheriffVoterIndex = page.data.dayVoters.findIndex(seat => seat.number === 3)
+assert.equal(page.data.dayVoters[recordedSheriffVoterIndex].voted, true, '已经完成警长投票的玩家应标记为已投')
+page.selectDayVoter.call(page, { currentTarget: { dataset: { index: recordedSheriffVoterIndex } } })
+assert.equal(page.data.selectedVoterIndices.length, 0, '已经完成警长投票的玩家不能再次选中')
+assert.equal(toastMessages.pop(), '3号已经投过票', '重复选择已投玩家时应明确提示')
+page.setData({ selectedVoterIndices: [recordedSheriffVoterIndex], selectedVoteTargetIndex: 1 })
+page.recordVote.call(page)
+assert.equal(app.globalData.game.dayState.sheriffVotes[3], 1, '再次记录不能覆盖玩家原有的警长投向')
+assert.equal(toastMessages.pop(), '所选玩家中有人已经投过票', '记录层也应拦截重复警长投票')
+
+app.globalData.game.dayState = {
   stage: 'exileVote', exileMode: 'individual', exilePk: true, exileTieCandidates: [1, 2], exileVotes: {},
   sheriffCandidates: [], sheriffInitialCandidates: [], sheriffWithdrawn: [], sheriffVotes: {}, simpleVoteCounts: {}
 }
@@ -101,6 +116,30 @@ page.completeHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2'
 assert.equal(withdrawnNumber, 2, '退水按钮放大完成时应立即执行退水')
 assert.equal(toastMessages.length, 0, '长按退水成功时不应显示长按提示')
 page.withdrawSheriffCandidate = originalWithdraw
+
+const individualExileGame = engine.makeGame(board, roles)
+individualExileGame.phase = 'day'
+individualExileGame.sheriffElectionDone = true
+individualExileGame.dayState = engine.createDayState(individualExileGame)
+individualExileGame.dayState.stage = 'exileVote'
+individualExileGame.dayState.exileVotes = { 1: 5 }
+app.globalData.game = individualExileGame
+page.refresh.call(page)
+page.resolveExileVote.call(page)
+assert.equal(Object.keys(app.globalData.game.dayState.exileVotes).length, 12, '结束逐票放逐时应为所有可投票玩家补齐票据')
+assert.equal(app.globalData.game.dayState.exileVotes[2], null, '没有记录投向的玩家应自动记为弃票')
+assert.equal(app.globalData.game.voteHistory[0].votes[12], null, '投票历史应保存自动补齐的弃票')
+
+const allAbstainGame = engine.makeGame(board, roles)
+allAbstainGame.phase = 'day'
+allAbstainGame.sheriffElectionDone = true
+allAbstainGame.dayState = engine.createDayState(allAbstainGame)
+allAbstainGame.dayState.stage = 'exileVote'
+app.globalData.game = allAbstainGame
+page.refresh.call(page)
+page.resolveExileVote.call(page)
+assert.equal(app.globalData.game.dayState.stage, 'exileDone', '全员未投时应按全员弃票结算为无人出局')
+assert.equal(Object.values(app.globalData.game.dayState.exileVotes).every(target => target === null), true, '全员未投时每名玩家都应留下弃票记录')
 
 const firstNightIdentityGame = engine.makeFirstNightIdentityGame(board)
 app.globalData.game = firstNightIdentityGame
