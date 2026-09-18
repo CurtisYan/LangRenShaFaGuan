@@ -28,15 +28,15 @@
 .section-heading .subtitle { margin: 0; font-size: 34rpx; }
 .board-count { display: flex; align-items: baseline; gap: 7rpx; padding-bottom: 2rpx; color: var(--color-ink-muted); font-size: 20rpx; }
 .board-count-number { color: var(--color-ink); font-size: 30rpx; font-weight: 600; }
-.board-scroll { min-height: 0; flex: 1; }
-.board-list { border-top: 0; }
+.board-scroll { width: calc(100% + 30rpx); min-height: 0; flex: 1; margin-right: -30rpx; }
+.board-list { box-sizing: border-box; padding-right: 30rpx; border-top: 0; }
 .board-row { display: flex; min-height: 132rpx; align-items: center; justify-content: space-between; gap: 22rpx; padding: 22rpx 4rpx; }
 .board-main { min-width: 0; flex: 1; }
 .board-name { margin-bottom: 7rpx; font-size: 30rpx; font-weight: 600; }
 .board-summary { overflow: hidden; color: var(--color-ink-muted); font-size: 24rpx; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
 .board-side { flex: 0 0 72rpx; color: var(--color-ink-secondary); font-size: 22rpx; text-align: right; }
 .board-enter { margin-top: 5rpx; color: var(--color-ink-muted); font-size: 30rpx; font-weight: 300; line-height: 1; }
-.rule-entry { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 20rpx; margin: 14rpx -30rpx 0; padding: 22rpx 30rpx calc(22rpx + env(safe-area-inset-bottom)); color: #f6f5ed; background: #27332f; }
+.rule-entry { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 20rpx; margin: 14rpx -30rpx 0; padding: 22rpx 30rpx; color: #f6f5ed; background: #27332f; }
 .rule-entry-copy { min-width: 0; }
 .rule-entry .eyebrow { margin-bottom: 5rpx; color: #aeb8b2; }
 .rule-entry .subtitle { margin: 0; color: #f6f5ed; font-size: 30rpx; }

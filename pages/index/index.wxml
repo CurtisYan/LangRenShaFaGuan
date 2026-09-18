@@ -19,7 +19,7 @@
     <view><view class="eyebrow">开始新的一局</view><view class="subtitle">选择板子</view></view>
     <view class="board-count"><text class="board-count-number">{{boards.length}}</text><text>个板子</text></view>
   </view>
-  <scroll-view scroll-y class="board-scroll" enhanced show-scrollbar="false">
+  <scroll-view scroll-y class="board-scroll" enhanced show-scrollbar="true">
     <view class="board-list list-stack">
       <view wx:for="{{boards}}" wx:key="id" class="board-row list-row-base tap-surface" data-id="{{item.id}}" bindtap="chooseBoard">
         <view class="board-main"><view class="board-name">{{item.name}}</view><view class="board-summary">{{item.summary}}</view></view>
