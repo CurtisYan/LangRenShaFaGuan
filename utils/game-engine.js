@@ -125,7 +125,7 @@ function makeGame(board, seatRoles, options = {}) {
     phase: 'night',
     sheriffSeat: null,
     pendingSheriffTransfer: null,
-    sheriffElectionDone: false,
+    sheriffElectionDone: !board.dayRules.sheriff,
     sheriffElectionInterrupted: false,
     sheriffElectionSnapshot: null,
     selfExposeCount: 0,
@@ -266,9 +266,20 @@ function setNightActionChoice(game, actionId, choice) {
   return game.night.actions[actionId]
 }
 
+function canWitchSelfSave(game) {
+  const board = getBoard(game.boardId)
+  return Boolean(board && board.witchSelfSave === 'firstNight' && game.day === 1)
+}
+
 function setWitchAction(game, action, targetNumber) {
   ensureGameState(game)
   const normalized = ['none', 'save', 'poison'].includes(action) ? action : 'none'
+  const wolfTarget = game.night.wolfTarget || (game.night.actions.wolves && game.night.actions.wolves.target)
+  const witch = seatForRole(game, 'witch')
+  if (normalized === 'save' && witch && wolfTarget === witch.number && !canWitchSelfSave(game)) {
+    const board = getBoard(game.boardId)
+    throw new Error(board && board.witchSelfSave === 'firstNight' ? '本板女巫仅首夜可以自救' : '本板女巫全程不能自救')
+  }
   game.night.witchAction = normalized
   game.night.witchTarget = normalized === 'poison' && targetNumber ? Number(targetNumber) : null
   game.night.actions.witch = { ...actionValue(game, 'witch'), choice: normalized, target: game.night.witchTarget }
@@ -812,7 +823,8 @@ function settleNight(game) {
   const witchActor = copiedWitchChoice !== 'none' ? maid : actor('witch')
   const witchActionId = copiedWitchChoice !== 'none' ? 'eclipseMaidAbility' : 'witch'
   const witchTarget = effectiveActionTarget(game, witchActionId, witchActor, true)
-  const saveUsed = witchChoice === 'save' && game.resources.antidote && wolfTarget
+  const savingSelf = witchActor && wolfTarget === witchActor.number
+  const saveUsed = witchChoice === 'save' && game.resources.antidote && wolfTarget && (!savingSelf || (witchActor.roleId === 'witch' && canWitchSelfSave(game)))
   if (saveUsed) {
     const saved = game.seats.find(seat => seat.number === wolfTarget)
     if (saved) saved.marks.silverWater = true
@@ -1096,4 +1108,4 @@ function evaluateWinner(game) {
   return winner
 }
 
-module.exports = { makeGame, makeFirstNightIdentityGame, getIdentityAssignmentPrompt, toggleIdentityAssignmentSeat, completeIdentityAssignment, getGuidedFirstNightAction, completeGuidedFirstNightAction, guidedFirstNightReadyToSettle, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }
+module.exports = { makeGame, makeFirstNightIdentityGame, getIdentityAssignmentPrompt, toggleIdentityAssignmentSeat, completeIdentityAssignment, getGuidedFirstNightAction, completeGuidedFirstNightAction, guidedFirstNightReadyToSettle, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, canWitchSelfSave, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }

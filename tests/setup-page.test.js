@@ -34,4 +34,10 @@ assert.equal(app.globalData.game.identityAssignment.complete, false, '第一夜�
 assert.equal(app.globalData.game.seats.every(seat => !seat.roleId), true, '点击盲发入口不应使用当前身份配置草稿')
 assert.equal(redirects[0], '/pages/game/game', '线下发牌入口应直接打开主持对局页')
 
+page.onLoad.call(page, { boardId: 'hidden9' })
+assert.equal(page.data.board.playerCount, 9, '9人暗牌场配置页应生成9个座位')
+assert.equal(page.data.seats.length, 9, '9人暗牌场不应沿用12人座位数量')
+page.startFirstNightIdentityGame.call(page)
+assert.equal(app.globalData.game.seats.length, 9, '9人暗牌场迷糊法官模式应以9个座位开局')
+
 console.log('setup page tests passed')

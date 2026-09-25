@@ -9,7 +9,8 @@ const boardIds = {
   '12人石像鬼守墓人场': 'gargoyleGravedigger12', '12人血夜猎魔人场': 'bloodDemonHunter12', '12人兄狐乌鸦场': 'brotherFoxCrow12',
   '12人噩梦之影场': 'nightmareDreamer12', '12人孤独少女场': 'lonelyGirl12', '12人奇迹商人场': 'miracleMerchant12',
   '12人永序之轮': 'eternalOrder12', '12人纯白夜影': 'pureWhiteNight12', '12人迷雾鸦影': 'fogCrow12',
-  '12人猎日逐光': 'sunChaser12', '12人觉醒狼王': 'awakenedWolfKing12', '12人镜隐迷踪': 'mirrorMystery12'
+  '12人猎日逐光': 'sunChaser12', '12人觉醒狼王': 'awakenedWolfKing12', '12人镜隐迷踪': 'mirrorMystery12',
+  '9人暗牌场': 'hidden9'
 }
 
 const roleIds = {

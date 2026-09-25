@@ -6,7 +6,7 @@ const commonDay = (roleCounts, exposure = 'double') => ({
   exposure,
   selfExposeRoleIds: Object.keys(roleCounts).filter(roleId => roles[roleId] && roles[roleId].canSelfExpose)
 })
-const common = (id, name, summary, roleCounts, nightSequence, specialRules = [], exposure = 'double') => ({ id, name, summary, playerCount: 12, roleCounts, nightSequence, dayRules: commonDay(roleCounts, exposure), rules: ['暗牌，有警长', `${exposure === 'double' ? '双曝' : '单曝'}吞警徽`, '女巫全程不能自救', ...specialRules] })
+const common = (id, name, summary, roleCounts, nightSequence, specialRules = [], exposure = 'double') => ({ id, name, summary, playerCount: 12, roleCounts, nightSequence, witchSelfSave: 'never', dayRules: commonDay(roleCounts, exposure), rules: ['暗牌，有警长', `${exposure === 'double' ? '双曝' : '单曝'}吞警徽`, '女巫全程不能自救', ...specialRules] })
 
 const boards = [
   common('standard12', '12人标准场', '4狼 + 4民 + 预女猎愚', { wolf: 4, villager: 4, seer: 1, witch: 1, hunter: 1, fool: 1 }, ['wolves', 'witch', 'seer'], ['猎人吃毒不能开枪', '愚者被放逐翻牌不死']),
@@ -26,7 +26,18 @@ const boards = [
   common('fogCrow12', '12人迷雾鸦影', '3狼 + 狼鸦之爪 + 4民 + 预愚摄梦炼金魔女', { wolf: 3, wolfCrowClaw: 1, villager: 4, seer: 1, fool: 1, dreamer: 1, alchemistWitch: 1 }, ['alchemistWitch', 'wolves', 'wolfCrowClaw', 'dreamer', 'seer'], ['末明之雾限制狼刀目标', '法老之蛇可在公布前救回狼刀目标', '狼鸦之爪觉醒后获得一次无视保护的爪击']),
   common('sunChaser12', '12人猎日逐光', '3狼 + 蚀日侍女 + 4民 + 预女摄梦流光伯爵', { wolf: 3, eclipseMaid: 1, villager: 4, seer: 1, witch: 1, dreamer: 1, radiantCount: 1 }, ['eclipseMaid', 'eclipseMaidAbility', 'wolves', 'dreamer', 'radiantCount', 'witch', 'seer'], ['蚀日侍女第二夜起吞噬并暂时复制技能', '流光庇护免疫夜间伤害并触发反噬']),
   common('awakenedWolfKing12', '12人觉醒狼王', '3狼 + 觉醒狼王 + 4民 + 预女奇迹商人摄梦', { wolf: 3, awakenedWolfKing: 1, villager: 4, seer: 1, witch: 1, miracleMerchant: 1, dreamer: 1 }, ['miracleMerchant', 'luckySkill', 'wolves', 'awakenedWolfKing', 'dreamer', 'witch', 'seer'], ['觉醒狼王拥有两枚可亲传的狼王爪']),
-  common('mirrorMystery12', '12人镜隐迷踪', '3狼 + 觉醒隐狼 + 4民 + 守女猎魔镜少女', { wolf: 3, awakenedHiddenWolf: 1, villager: 4, guard: 1, witch: 1, hunter: 1, mirrorGirl: 1 }, ['awakenedHiddenWolf', 'wolves', 'hiddenWolfAbility', 'guard', 'witch', 'mirrorGirl'], ['觉醒隐狼每局一次模仿身份并在次日起获得对应技能'])
+  common('mirrorMystery12', '12人镜隐迷踪', '3狼 + 觉醒隐狼 + 4民 + 守女猎魔镜少女', { wolf: 3, awakenedHiddenWolf: 1, villager: 4, guard: 1, witch: 1, hunter: 1, mirrorGirl: 1 }, ['awakenedHiddenWolf', 'wolves', 'hiddenWolfAbility', 'guard', 'witch', 'mirrorGirl'], ['觉醒隐狼每局一次模仿身份并在次日起获得对应技能']),
+  {
+    id: 'hidden9',
+    name: '9人暗牌场',
+    summary: '3狼 + 3民 + 预女猎',
+    playerCount: 9,
+    roleCounts: { wolf: 3, villager: 3, seer: 1, witch: 1, hunter: 1 },
+    nightSequence: ['wolves', 'witch', 'seer'],
+    witchSelfSave: 'firstNight',
+    dayRules: { sheriff: false, sheriffVoteWeight: 1, exposure: 'none', selfExposeRoleIds: ['wolf'] },
+    rules: ['暗牌，无警长', '普通狼人可以自曝', '女巫仅首夜可以自救', '猎人每局可开一枪']
+  }
 ]
 
 module.exports = { boards, getBoard: id => boards.find(board => board.id === id) || null }

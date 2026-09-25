@@ -213,7 +213,7 @@ Page({
   },
   selectWitchAction(event) {
     const action = ['none', 'save', 'poison'][Number(event.detail.value)]; const game = this.data.game
-    if (action === 'save') { if (!game.resources.antidote) return this.toast('解药已经使用'); if (!game.night.wolfTarget) return this.toast('请先记录狼人刀口'); const witch = game.seats.find(item => item.roleId === 'witch'); if (witch && witch.number === game.night.wolfTarget) return this.toast('本板女巫全程不能自救') }
+    if (action === 'save') { if (!game.resources.antidote) return this.toast('解药已经使用'); if (!game.night.wolfTarget) return this.toast('请先记录狼人刀口'); const witch = game.seats.find(item => item.roleId === 'witch'); if (witch && witch.number === game.night.wolfTarget && !engine.canWitchSelfSave(game)) return this.toast(this.data.board.witchSelfSave === 'firstNight' ? '本板女巫仅首夜可以自救' : '本板女巫全程不能自救') }
     if (action === 'poison' && !game.resources.poison) return this.toast('毒药已经使用')
     if (game.night.witchAction === action) return
     this.checkpoint(game, '记录女巫行动')
@@ -240,7 +240,7 @@ Page({
       if (!game.night.wolfTarget && !(game.night.actions.wolves && game.night.actions.wolves.target)) return this.toast('请先记录狼人刀口')
       const wolfTarget = game.night.wolfTarget || game.night.actions.wolves.target
       const witch = game.seats.find(item => item.roleId === 'witch')
-      if (witch && witch.number === wolfTarget) return this.toast('本板女巫全程不能自救')
+      if (witch && witch.number === wolfTarget && !engine.canWitchSelfSave(game)) return this.toast(this.data.board.witchSelfSave === 'firstNight' ? '本板女巫仅首夜可以自救' : '本板女巫全程不能自救')
     }
     if (actionId === 'witch' && choice === 'poison' && !game.resources.poison) return this.toast('毒药已经使用')
     this.checkpoint(game, `记录${card.name}`)

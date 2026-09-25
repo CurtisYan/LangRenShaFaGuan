@@ -53,7 +53,7 @@ function resolveAllDeathPrompts(game) {
 }
 
 {
-  assert.equal(boards.length, 18, '文档中的18个板子都应可以开局')
+  assert.equal(boards.length, 19, '文档中的19个板子都应可以开局')
   boards.forEach(board => {
     assert.equal(board.nightSequence[board.nightSequence.length - 1], board.roleCounts.seer ? 'seer' : board.id === 'pureWhiteNight12' ? 'pureWhiteGirl' : board.id === 'mirrorMystery12' ? 'mirrorGirl' : board.nightSequence[board.nightSequence.length - 1], `${board.name}的查验身份应收在夜间流程末尾`)
   })
@@ -424,6 +424,36 @@ function resolveAllDeathPrompts(game) {
   assert.equal(restored.game.phase, 'night', '返回步骤应恢复原阶段')
   assert.equal(restored.game.seats[4].alive, true, '返回步骤应恢复座位状态')
   assert.equal(restored.game.stepHistory.length, 0, '已返回的步骤不应再次留在历史中')
+}
+
+{
+  const board = getBoard('hidden9')
+  assert.equal(board.playerCount, 9, '9人暗牌场应创建9个座位')
+  assert.deepEqual(board.roleCounts, { wolf: 3, villager: 3, seer: 1, witch: 1, hunter: 1 }, '9人暗牌场身份配置应与规则一致')
+  assert.deepEqual(board.nightSequence, ['wolves', 'witch', 'seer'], '9人暗牌场夜间顺序应为狼人、女巫、预言家')
+  assert.equal(board.dayRules.sheriff, false, '9人暗牌场不应有警长')
+  assert.deepEqual(board.dayRules.selfExposeRoleIds, ['wolf'], '9人暗牌场普通狼人应可以自曝')
+
+  const game = engine.makeGame(board, boardRoles(board.id))
+  const witch = game.seats.find(seat => seat.roleId === 'witch')
+  engine.setNightActionTarget(game, 'wolves', witch.number)
+  engine.setWitchAction(game, 'save')
+  engine.settleNight(game)
+  assert.equal(witch.alive, true, '9人暗牌场女巫首夜应可以自救')
+  assert.equal(game.resources.antidote, false, '首夜自救后应消耗解药')
+  assert.equal(game.sheriffElectionDone, true, '无警长板子开局即应跳过警长竞选')
+  assert.equal(game.dayState.stage, 'announceNight', '无警长板子天亮后应直接公布昨夜信息')
+
+  const later = engine.makeGame(board, boardRoles(board.id))
+  const laterWitch = later.seats.find(seat => seat.roleId === 'witch')
+  later.day = 2
+  engine.setNightActionTarget(later, 'wolves', laterWitch.number)
+  assert.throws(() => engine.setWitchAction(later, 'save'), /仅首夜可以自救/, '9人暗牌场女巫第二夜起不能自救')
+
+  const selfExposeGame = engine.makeGame(board, boardRoles(board.id))
+  const wolf = selfExposeGame.seats.find(seat => seat.roleId === 'wolf')
+  engine.applyDayEvent(selfExposeGame, 'selfExpose', wolf.number)
+  assert.equal(wolf.alive, false, '9人暗牌场普通狼人应可正常自曝')
 }
 
 console.log('game-engine tests passed')
