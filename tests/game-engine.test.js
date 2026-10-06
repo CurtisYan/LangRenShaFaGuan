@@ -283,6 +283,8 @@ function resolveAllDeathPrompts(game) {
   game.night.witchAction = 'save'
   engine.settleNight(game)
   assert.equal(game.seats[4].alive, false, '同守同救仍应出局')
+  assert.equal(game.seats[4].deathCause, '奶穿', '同守同救的死亡信息应显示为奶穿')
+  assert.equal(game.seats[4].deathCauseId, 'wolfAttack', '奶穿仍应按狼人袭击结算死亡技能与遗言')
 }
 
 {

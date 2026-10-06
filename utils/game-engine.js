@@ -6,6 +6,7 @@ const ISOLATED_WOLVES = new Set(['gargoyle', 'wolfCrowClaw', 'eclipseMaid', 'awa
 
 const CAUSE_LABELS = {
   wolfAttack: '狼人袭击', poison: '女巫毒药', exile: '放逐', selfExpose: '狼人自曝',
+  overheal: '奶穿',
   hunterShot: '猎人开枪', wolfKingClaw: '狼王爪击', awakenedClaw: '狼王爪击',
   whiteWolfClaw: '白狼王爪击',
   inspection: '查验出局', dream: '梦游出局', dreamFollow: '摄梦连带', tradeFailure: '交易失败',
@@ -14,8 +15,8 @@ const CAUSE_LABELS = {
 
 function causeLabel(cause) { return CAUSE_LABELS[cause] || cause }
 function causeId(cause) {
-  if (CAUSE_LABELS[cause]) return cause
-  return Object.keys(CAUSE_LABELS).find(id => CAUSE_LABELS[id] === cause) || cause
+  const id = CAUSE_LABELS[cause] ? cause : Object.keys(CAUSE_LABELS).find(item => CAUSE_LABELS[item] === cause) || cause
+  return id === 'overheal' ? 'wolfAttack' : id
 }
 
 function defaultSpecialState() {
@@ -840,7 +841,7 @@ function settleNight(game) {
   if (wolfVictim && !wolfImmune && (!wolfProtected || guardedAndSaved)) {
     const snake = actor('alchemistWitch')
     if (snake && game.special.alchemistWitch.snakeAvailable) game.special.alchemistWitch.pendingWolfTarget = wolfTarget
-    else addEvent(wolfTarget, 'wolfAttack')
+    else addEvent(wolfTarget, guardedAndSaved ? 'overheal' : 'wolfAttack')
   } else game.special.alchemistWitch.pendingWolfTarget = null
 
   let poisonHitEvilKnight = false
