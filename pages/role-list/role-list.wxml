@@ -1,1 +1,6 @@
-<view class="page role-list-page"><view class="role-list-hero"><view class="eyebrow">资料库 · 角色说明</view><view class="title">身份一览</view></view><view class="role-list list-stack"><view wx:for="{{roleList}}" wx:key="id" class="role-list-row list-row-base tap-surface" data-id="{{item.id}}" bindtap="openRole"><view class="role-title"><text>{{item.name}}</text><text class="tag {{item.tagClass}}">{{item.group}}</text></view><text class="role-enter">›</text></view></view></view>
+<view class="page role-list-page">
+  <view class="role-list-hero"><view class="eyebrow">资料库 · 角色说明</view><view class="title">身份一览</view></view>
+  <view class="role-search"><icon type="search" size="18" color="#899087"/><input class="role-search-input" value="{{keyword}}" placeholder="搜索角色" placeholder-class="role-search-placeholder" bindinput="searchRoles" confirm-type="search"/><view wx:if="{{keyword}}" class="role-search-clear" bindtap="clearSearch" aria-role="button" aria-label="清空搜索">×</view></view>
+  <view wx:if="{{roleList.length}}" class="role-list list-stack"><view wx:for="{{roleList}}" wx:key="id" class="role-list-row list-row-base tap-surface" data-id="{{item.id}}" bindtap="openRole"><view class="role-title"><text>{{item.name}}</text><text class="tag {{item.tagClass}}">{{item.group}}</text></view><text class="role-enter">›</text></view></view>
+  <view wx:else class="role-search-empty">未找到相关角色</view>
+</view>

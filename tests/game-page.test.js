@@ -6,7 +6,11 @@ const engine = require('../utils/game-engine')
 
 const gameTemplate = fs.readFileSync(path.join(__dirname, '../pages/game/game.wxml'), 'utf8')
 assert.equal(gameTemplate.includes('请{{identityRole.name}}玩家睁眼'), false, '身份确认主持词不应出现生硬的“请某身份玩家睁眼”')
-assert.equal(gameTemplate.includes('{{identityRole.name}}请睁眼'), true, '身份确认主持词应使用“某身份请睁眼”')
+assert.equal(gameTemplate.includes('class="identity-panel"'), false, '不得单独显示一套身份确认页面')
+assert.equal(gameTemplate.includes('action.awaitingIdentity'), true, '选身份应嵌入夜间主持行动卡')
+assert.equal(gameTemplate.includes('天黑请闭眼。'), true, '身份确认时仍使用完整夜间主持页面')
+assert.equal(gameTemplate.includes('catchtap="withdrawSheriffCandidate"'), true, '候选号码右上角的×应直接点击退水')
+assert.equal(gameTemplate.includes('data-hold-key="withdraw-'), false, '退水号码不再使用长按操作')
 
 let page
 global.Page = config => { page = config }
@@ -45,7 +49,7 @@ global.getApp = () => app
 page.refresh.call(page)
 page.withdrawSheriffCandidate.call(page, { currentTarget: { dataset: { number: 1 } } })
 assert.equal(app.globalData.game.sheriffSeat, 2, 'PK 退水后仅剩一人应自动当选警长')
-assert.equal(app.globalData.game.dayState.stage, 'sheriffOrder', '自动当选后应直接决定发言顺序')
+assert.equal(app.globalData.game.dayState.stage, 'announceNight', '自动当选后应先公布死讯')
 assert.equal(app.globalData.game.stepHistory.length, 1, '退水前应保留可回退检查点')
 
 page.goBackStep.call(page)
@@ -58,6 +62,70 @@ assert.deepEqual(groupedVotes, [
   { target: '12号', voters: '1号 ⬡2号 3号' },
   { target: '弃票', voters: '4号' }
 ], '投票记录应按投向归组，并保留警长票标记')
+
+// 所有警长板子均先公布死讯，完成技能及遗言后再决定发言顺序。
+for (const sheriffBoard of require('../data/boards').boards.filter(item => item.dayRules.sheriff)) {
+  const seatRoles = Object.entries(sheriffBoard.roleCounts).flatMap(([id, count]) => Array(count).fill(id))
+  const firstDay = engine.makeGame(sheriffBoard, seatRoles)
+  const victim = firstDay.seats.find(seat => seat.roleId === 'villager')
+  engine.setNightActionTarget(firstDay, 'wolves', victim.number)
+  if (sheriffBoard.roleCounts.lonelyGirl) engine.setLonelyGirlTarget(firstDay, firstDay.seats.find(seat => seat.roleId === 'wolf').number)
+  engine.settleNight(firstDay)
+  firstDay.dayState = engine.createDayState(firstDay)
+  app.globalData.game = firstDay
+  page.refresh()
+  const elected = firstDay.seats.find(seat => seat.roleId === 'wolf')
+  page.electSheriff(firstDay, elected.number, '测试当选')
+  if (firstDay.dayState.stage === 'alchemistSnake') page.resolveAlchemistSnake({ currentTarget: { dataset: { use: 'no' } } })
+  assert.equal(firstDay.dayState.stage, 'announceNight', `${sheriffBoard.name}当选后先报死讯`)
+  page.announceNightDeaths()
+  assert.equal(firstDay.dayState.stage, 'deathSkills', `${sheriffBoard.name}先询问出局技能`)
+  while (firstDay.pendingDeathSkills.length) page.declineDeathSkill()
+  assert.equal(firstDay.dayState.stage, 'lastWords', `${sheriffBoard.name}首夜出局玩家应有遗言`)
+  while (firstDay.pendingLastWords.length) page.nextLastWord()
+  assert.equal(firstDay.dayState.stage, 'sheriffOrder', `${sheriffBoard.name}遗言后才决定顺序`)
+  page.setSpeakingOrder({ currentTarget: { dataset: { direction: 'clockwise' } } })
+  assert.equal(firstDay.dayState.stage, 'discussion', `${sheriffBoard.name}决定顺序后直接发言，不重复报死讯`)
+}
+app.globalData.game = game
+page.refresh()
+
+for (const tearBadge of [false, true]) {
+  const chainGame = engine.makeGame(board, roles)
+  engine.setNightActionTarget(chainGame, 'wolves', 11)
+  engine.settleNight(chainGame)
+  chainGame.dayState = engine.createDayState(chainGame)
+  app.globalData.game = chainGame
+  page.refresh()
+  page.electSheriff(chainGame, 1, '测试技能连锁')
+  page.announceNightDeaths()
+  page.setData({ selectedSkillTargetIndex: page.data.aliveSeats.findIndex(seat => seat.number === 1) })
+  page.confirmDeathSkillTarget()
+  assert.equal(chainGame.seats[0].alive, false, '首夜猎人开枪可带走刚当选的警长')
+  assert.equal(page.data.pendingSheriffTransfer, null, '连锁出局技能未结算前不能传警徽')
+  while (chainGame.pendingDeathSkills.length) page.declineDeathSkill()
+  assert.equal(page.data.pendingSheriffTransfer.number, 1, '技能连锁完成后先处理警徽')
+  if (tearBadge) page.tearSheriffBadge()
+  else {
+    page.setData({ selectedSheriffTransferIndex: page.data.sheriffTransferTargets.findIndex(seat => seat.number === 9) })
+    page.transferSheriffBadge()
+  }
+  assert.equal(chainGame.dayState.stage, 'lastWords', '警徽结算后继续遗言')
+  while (chainGame.pendingLastWords.length) page.nextLastWord()
+  assert.equal(chainGame.dayState.stage, tearBadge ? 'discussion' : 'sheriffOrder', '遗言后由新警长决定顺序；撕毁警徽则按无警长流程')
+  assert.equal(chainGame.sheriffSeat, tearBadge ? null : 9)
+}
+const peacefulDay = engine.makeGame(board, roles)
+peacefulDay.phase = 'day'
+peacefulDay.dayState = engine.createDayState(peacefulDay)
+app.globalData.game = peacefulDay
+page.refresh()
+page.electSheriff(peacefulDay, 9, '平安夜')
+assert.equal(peacefulDay.dayState.stage, 'announceNight')
+page.announceNightDeaths()
+assert.equal(peacefulDay.dayState.stage, 'sheriffOrder', '平安夜报完信息即可决定顺序')
+app.globalData.game = game
+page.refresh()
 
 app.globalData.game.dayState = {
   stage: 'sheriffVote', sheriffCandidates: [1, 2], sheriffInitialCandidates: [1, 2], sheriffWithdrawn: [], sheriffVotes: { 3: 1 },
@@ -102,21 +170,6 @@ assert.equal(backTriggerCount, 1, '返回按钮放大完成时应立即执行返
 assert.equal(toastMessages.length, 0, '长按返回成功时不应显示长按提示')
 page.goBackStep = originalGoBackStep
 
-let withdrawnNumber = null
-const originalWithdraw = page.withdrawSheriffCandidate
-page.withdrawSheriffCandidate = number => { withdrawnNumber = number }
-page.startHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
-assert.equal(page.data.confirmationPulse, 'withdraw-2', '按下退水号码牌后应立即进入放大状态')
-page.endHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
-assert.equal(page.data.confirmationPulse, '', '未按满时松手应取消退水并恢复号码牌')
-assert.equal(withdrawnNumber, null, '短按退水号码牌不应误触发退水')
-assert.equal(toastMessages.pop(), '请长按号码退水', '短按退水号码牌应提示需要长按')
-page.startHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
-page.completeHold.call(page, { currentTarget: { dataset: { holdKey: 'withdraw-2', number: 2 } } })
-assert.equal(withdrawnNumber, 2, '退水按钮放大完成时应立即执行退水')
-assert.equal(toastMessages.length, 0, '长按退水成功时不应显示长按提示')
-page.withdrawSheriffCandidate = originalWithdraw
-
 const individualExileGame = engine.makeGame(board, roles)
 individualExileGame.phase = 'day'
 individualExileGame.sheriffElectionDone = true
@@ -146,11 +199,15 @@ app.globalData.game = firstNightIdentityGame
 page.refresh.call(page)
 assert.equal(page.data.identityAssignmentPending, true, '第一夜行动前应先显示号码身份确认')
 assert.equal(page.data.identityRole.name, '狼人', '身份确认卡片应显示当前需要确认的身份')
+assert.equal(page.data.nightActionCards[0].awaitingIdentity, true, '身份选择应在当前夜间行动卡内显示')
+assert.equal(page.data.nightActionCards[0].hostLine, '狼人请睁眼。', '号码选择与行动共用角色主持词')
+assert.equal(page.data.nightFlowProgressText, '第 1 / 3 项', '选择身份期间应显示当前夜间环节进度')
 page.data.identitySeatCards.filter(seat => !seat.assigned).slice(0, page.data.identityRole.required).forEach(seat => page.toggleIdentitySeat.call(page, { currentTarget: { dataset: { number: seat.number } } }))
 page.confirmIdentityRole.call(page)
 assert.equal(page.data.identityAssignmentPending, false, '确认狼人号码后不应继续登记下一身份')
 assert.equal(page.data.nightActionCards.length, 1, '迷糊法官每次只应显示当前夜间行动')
 assert.equal(page.data.nightActionCards[0].id, 'wolves', '确认狼人号码后应立即进行狼人行动')
+assert.equal(page.data.nightActionCards[0].hostLine, '狼人请睁眼。', '确认身份后主持词保持一致，在原行动卡继续操作')
 page.selectNightActionTarget.call(page, { currentTarget: { dataset: { actionId: 'wolves' } }, detail: { value: 4 } })
 page.completeGuidedNightAction.call(page)
 assert.equal(page.data.identityAssignmentPending, true, '狼人行动完成后才应确认下一张身份牌')
@@ -174,6 +231,20 @@ assert.equal(app.globalData.game.night.wolfTarget, 5, '狼人身份确认后紧�
 assert.equal(page.data.nightActionCards.length, 0, '逐项完成后不应重新显示整张夜间行动表')
 assert.equal(page.data.guidedNightActionPending, false, '逐项完成后应允许直接结算第一夜')
 assert.equal(page.data.wolfMembers, '1号、2号、3号、4号', '确认完成后应读取狼人号码')
+
+const mirrorBoard = getBoard('mirrorMystery12')
+app.globalData.game = engine.makeFirstNightIdentityGame(mirrorBoard)
+page.refresh()
+assert.equal(page.data.nightActionCards[0].hostLine, '魔镜少女请保持闭眼，举手示意。')
+assert.equal(page.data.nightActionCards[0].awaitingIdentity, true)
+page.toggleIdentitySeat({ currentTarget: { dataset: { number: 5 } } })
+page.confirmIdentityRole()
+assert.equal(page.data.identityRole.name, '守卫', '闭眼示意确认号码后直接进入守卫，不重复出现示意行动页')
+assert.equal(app.globalData.game.identityAssignment.actionIndex, 1)
+assert.equal(page.data.nightActionCards[0].hostLine, '守卫请睁眼。')
+page.goBackStep()
+assert.equal(page.data.identityRole.name, '魔镜少女', '返回上一步可撤销示意登记及推进')
+assert.equal(app.globalData.game.seats[4].roleId, '')
 
 const nightGame = engine.makeGame(board, roles)
 app.globalData.game = nightGame

@@ -12,17 +12,15 @@
 .summary-tag.villager { color: var(--color-villager); background: var(--color-villager-soft); }
 .summary-tag.god { color: var(--color-god); background: var(--color-god-soft); }
 .summary-tag.third { color: var(--color-third); background: var(--color-third-soft); }
-.first-night-identity-card { box-sizing: border-box; margin-top: 28rpx; padding: 27rpx 27rpx 25rpx; border: 1rpx solid #b9c8bf; border-left: 5rpx solid var(--color-accent-muted); border-radius: var(--radius-card); background: #f2f6f2; }
+.first-night-identity-card { box-sizing: border-box; margin-top: 28rpx; padding: 27rpx 27rpx 25rpx; border: 1rpx solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
 .identity-entry-top { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; }
 .identity-entry-kicker { margin-bottom: 8rpx; color: var(--color-accent); font-size: 22rpx; font-weight: 600; letter-spacing: .1em; }
 .identity-entry-title { color: var(--color-ink); font-size: 34rpx; font-weight: 600; }
 .identity-entry-arrow { color: var(--color-accent); font-size: 46rpx; line-height: 1; }
 .identity-entry-copy { margin-top: 18rpx; color: var(--color-ink-secondary); font-size: 24rpx; line-height: 1.68; }
-.identity-entry-note { margin-top: 17rpx; padding-top: 15rpx; border-top: 1rpx solid #d7e0da; color: var(--color-ink-muted); font-size: 22rpx; line-height: 1.5; }
 .setup-divider { display: flex; align-items: center; gap: 18rpx; margin: 30rpx 0 0; color: var(--color-ink-muted); font-size: 22rpx; }
 .setup-divider::before, .setup-divider::after { content: ''; flex: 1; height: 1rpx; background: var(--color-border); }
 .mode-switch { margin: 30rpx 0 22rpx; }
-.instruction { margin: 0 4rpx 24rpx; font-size: 24rpx; line-height: 1.55; }
 .camp-heading { display: flex; align-items: center; gap: 10rpx; margin: 32rpx 2rpx 14rpx; font-size: 28rpx; font-weight: 600; }
 .camp-dot { width: 12rpx; height: 12rpx; border-radius: 50%; }
 .camp-dot.wolf { background: var(--color-wolf); }
@@ -41,7 +39,6 @@
 .role-numbers, .number-role { margin-top: 9rpx; color: var(--color-ink-muted); font-size: 22rpx; line-height: 1.35; }
 .seat-section-heading { display: flex; align-items: baseline; justify-content: space-between; margin: 38rpx 2rpx 14rpx; }
 .seat-section-heading .subtitle { margin: 0; }
-.seat-section-heading .muted { font-size: 22rpx; }
 .number-card { box-sizing: border-box; min-height: 100rpx; padding: 15rpx 8rpx; border-radius: 14rpx; text-align: center; }
 .seat-number { color: var(--color-ink); font-size: 32rpx; font-weight: 600; line-height: 1; }
 .seat-number text { margin-left: 2rpx; font-size: 20rpx; font-weight: 400; }

@@ -1,8 +1,8 @@
 .rules-page { padding-top: 52rpx; }
 .rules-hero { margin: 0 5rpx 50rpx; }
 .library-card { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18rpx; padding: 28rpx 29rpx; }
-.board-library { border-left: 5rpx solid var(--color-accent-muted); background: #f2f6f2; }
-.role-library { border-left: 5rpx solid var(--color-god); background: var(--color-god-soft); }
+.board-library { background: #f2f6f2; }
+.role-library { background: var(--color-god-soft); }
 .library-meta { margin-bottom: 9rpx; color: var(--color-accent); font-size: 22rpx; font-weight: 600; letter-spacing: .1em; }
 .role-library .library-meta { color: var(--color-god); }
 .library-title { color: var(--color-ink); font-size: 34rpx; font-weight: 600; letter-spacing: -.02em; }

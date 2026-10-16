@@ -75,6 +75,17 @@ function seatForRole(game, roleId) { return game.seats.find(seat => seat.roleId 
 function aliveSeatForRole(game, roleId) { return game.seats.find(seat => seat.alive && seat.roleId === roleId) || null }
 function actionValue(game, actionId) { ensureGameState(game); return game.night.actions[actionId] || {} }
 
+function getNightSequence(game, board) {
+  if (game.day === 1 && board.firstNightSequence) return board.firstNightSequence
+  return (board.nightSequence || []).filter(id => {
+    if (!board.firstNightSequence) return true
+    const mimicked = game.special && game.special.awakenedHiddenWolf && game.special.awakenedHiddenWolf.mimickedRoleId
+    if (id === 'awakenedHiddenWolf') return !mimicked
+    if (id === 'hiddenWolfAbility') return Boolean(mimicked)
+    return true
+  })
+}
+
 function identityRoleOrder(board) {
   const roleIds = Object.keys(board.roleCounts)
   const ordered = []
@@ -200,14 +211,14 @@ function autoAssignFinalIdentity(game, state) {
 function getIdentityAssignmentPrompt(game, board) {
   const state = normalizeIdentityAssignment(game, board)
   if (!isGuidedFirstNight(game) || !state || state.complete) return null
-  const actionId = board.nightSequence[state.actionIndex]
+  const actionId = getNightSequence(game, board)[state.actionIndex]
   const orderedRoleIds = actionId ? actionIdentityRoleIds(game, board, actionId) : identityRoleOrder(board)
   const roleId = orderedRoleIds.find(id => unresolvedIdentityRoleIds(game, state).includes(id))
   const role = roles[roleId]
   if (!role) return null
   const required = Number(state.roleCounts[roleId]) - game.seats.filter(seat => seat.roleId === roleId).length
   const definition = actionId && nightActionDefinitions[actionId]
-  return { actionId: actionId || null, actionName: definition ? definition.name : '', roleId, roleName: role.name, required, selectedSeatNumbers: state.selectedSeatNumbers.slice() }
+  return { actionId: actionId || null, actionName: definition ? definition.name : '', roleId, roleName: role.name, closedEyeSignal: Boolean(definition && definition.closedEyeSignal), required, selectedSeatNumbers: state.selectedSeatNumbers.slice() }
 }
 
 function toggleIdentityAssignmentSeat(game, board, seatNumber) {
@@ -313,7 +324,11 @@ function clearNightAction(game, actionId) {
 
 function effectiveRoleId(game, seat) {
   ensureGameState(game)
-  if (seat && seat.roleId === 'awakenedHiddenWolf' && game.special.awakenedHiddenWolf.mimickedRoleId) return game.special.awakenedHiddenWolf.mimickedRoleId
+  if (seat && seat.roleId === 'awakenedHiddenWolf') {
+    if (game.special.awakenedHiddenWolf.mimickedRoleId) return game.special.awakenedHiddenWolf.mimickedRoleId
+    const target = game.seats.find(item => item.number === Number(actionValue(game, 'awakenedHiddenWolf').target))
+    if (target) return target.roleId
+  }
   return seat ? seat.roleId : ''
 }
 
@@ -328,7 +343,7 @@ function inspectionResult(game, actionId, targetNumber) {
     inspected = seatForRole(game, definition.roleId) || target
   }
   const roleId = effectiveRoleId(game, inspected)
-  if (['pureWhiteGirl', 'wolfWitch', 'mirrorGirl', 'gargoyle', 'hiddenWolfAbility'].includes(actionId)) return roles[roleId] ? roles[roleId].name : ''
+  if (['pureWhiteGirl', 'wolfWitch', 'mirrorGirl', 'gargoyle', 'hiddenWolfAbility', 'awakenedHiddenWolf'].includes(actionId)) return roles[roleId] ? roles[roleId].name : ''
   return roles[roleId] && roles[roleId].camp === 'wolf' ? '狼人' : '好人'
 }
 
@@ -417,7 +432,7 @@ function getNightActionCards(game, board) {
     game.special.awakenedHiddenWolf.joined = true
     if (game.special.awakenedHiddenWolf.mimickedRoleId === 'wolf') game.special.awakenedHiddenWolf.extraClawAvailable = true
   }
-  return (board.nightSequence || []).map((actionId, index) => {
+  return getNightSequence(game, board).map((actionId, index) => {
     const definition = nightActionDefinitions[actionId] || { id: actionId, roleId: actionId, name: actionId, kind: 'target', optional: true }
     let actor = definition.roleId ? seatForRole(game, definition.roleId) : null
     if (actionId === 'wolves') actor = activeWolfTeam(game)[0] || null
@@ -462,6 +477,10 @@ function getNightActionCards(game, board) {
     if (actionId === 'luckySkill' && dynamic && dynamic.skill === 'guard' && game.resources.lastGuardTarget) candidates = candidates.filter(seat => seat.number !== game.resources.lastGuardTarget)
     if (actionId === 'hiddenWolfAbility' && dynamic && dynamic.skill === 'mirrorGirl') candidates = candidates.filter(seat => seat.number !== actor.number && !game.special.awakenedHiddenWolf.inspectedTargets.includes(seat.number))
     if (actionId === 'hiddenWolfAbility' && dynamic && dynamic.skill === 'hunter') { enabled = false; inactiveReason = '猎人技能仅在出局时询问。' }
+    if (actionId === 'hiddenWolfAbility' && dynamic && dynamic.skill === 'wolf' && !game.special.awakenedHiddenWolf.extraClawAvailable) { enabled = false; inactiveReason = game.special.awakenedHiddenWolf.extraClawUsed ? '一次性额外爪击已经使用。' : '其他狼人全部出局、加入狼队时才获得一次额外爪击。' }
+    if (actionId === 'hiddenWolfAbility' && dynamic && dynamic.skill === 'witch') {
+      if (!game.special.awakenedHiddenWolf.poisonAvailable) { enabled = false; inactiveReason = '复制获得的一瓶毒药已经使用。' }
+    }
     const noRepeat = actionId === 'mirrorGirl' ? game.special.mirrorGirlInspected : actionId === 'gargoyle' ? game.special.gargoyleInspected : []
     if (definition.noRepeat) candidates = candidates.filter(seat => !noRepeat.includes(seat.number))
     if (actionId === 'guard' && game.resources.lastGuardTarget) candidates = candidates.filter(seat => seat.number !== game.resources.lastGuardTarget)
@@ -476,6 +495,20 @@ function getNightActionCards(game, board) {
     }
     const selectedIndex = Math.max(0, candidates.findIndex(seat => seat.number === Number(value.target)))
     let result = value.target ? inspectionResult(game, actionId, value.target) : ''
+    const mimicTarget = actionId === 'awakenedHiddenWolf' && value.target ? game.seats.find(seat => seat.number === Number(value.target)) : null
+    const copiedSkill = mimicTarget && definition.copiedSkills && definition.copiedSkills[mimicTarget.roleId]
+    const mimicResult = copiedSkill ? { roleName: roles[mimicTarget.roleId].name, skill: copiedSkill.description, timing: copiedSkill.timing } : null
+    if (actionId === 'mirrorGirlSignal') result = '保持闭眼，举手示意；此时不查验。'
+    if (actionId === 'hiddenWolfStatus') {
+      const state = game.special.awakenedHiddenWolf
+      result = `${state.joined ? '普通狼刀：可用。' : '普通狼刀：不可用，其他狼人尚未全部出局。'}${state.extraClawAvailable ? '额外爪击：可用（一次性）。' : state.extraClawUsed ? '额外爪击：已使用。' : '额外爪击：未获得；须模仿狼人并加入狼队。'}`
+    }
+    if (actionId === 'hunterStatus') {
+      const poisoned = actionValue(game, 'witch').choice === 'poison' && Number(actionValue(game, 'witch').target) === (actor && actor.number)
+      const copiedPoison = actionValue(game, 'hiddenWolfAbility')
+      const hiddenPoisoned = game.special.awakenedHiddenWolf.mimickedRoleId === 'witch' && game.special.awakenedHiddenWolf.poisonAvailable && copiedPoison.choice === 'poison' && Number(copiedPoison.target) === (actor && actor.number)
+      result = poisoned || hiddenPoisoned ? '当前不能发动猎人技能。' : '当前可以发动猎人技能；实际出局时按最终结算确认。'
+    }
     if (actionId === 'gravedigger') {
       const exiled = game.special.lastExiledSeat && game.seats.find(seat => seat.number === game.special.lastExiledSeat)
       result = exiled ? `${exiled.number}号属于${roles[exiled.roleId].camp === 'wolf' ? '狼人阵营' : '好人阵营'}` : '上一天没有玩家被放逐。'
@@ -483,11 +516,12 @@ function getNightActionCards(game, board) {
     if (dynamic && ['inspect', 'seer', 'mirrorGirl'].includes(dynamic.skill) && value.target) result = inspectionResult(game, dynamic.skill === 'inspect' ? 'seer' : dynamic.skill, value.target)
     return {
       id: actionId, order: String(index + 2).padStart(2, '0'), name, prompt, kind, enabled, inactiveReason,
+      hostLine: definition.closedEyeSignal ? '魔镜少女请保持闭眼，举手示意。' : '', closedEyeSignal: Boolean(definition.closedEyeSignal),
       actorNumber: actor ? actor.number : '', targetNumbers: candidates.map(seat => seat.number), targetLabels: candidates.map(seat => `${seat.number}号`), targetIndex: selectedIndex,
       selectedTarget: value.target || null, targets: value.targets || [], targetSeats: candidates.map(seat => ({ number: seat.number, selected: (value.targets || []).includes(seat.number) })),
       targetCount: definition.targetCount || 1, choice: value.choice || '', choiceLabel: value.choice ? ((definition.choiceLabels || definition.choices || [])[(definition.choices || []).indexOf(value.choice)] || value.choice) : '', choiceOptions: definition.choiceLabels || definition.choices || [], choiceValues: definition.choices || [], choiceIndex: Math.max(0, (definition.choices || []).indexOf(value.choice)),
-      result, optional: definition.required !== true && definition.optional !== false, dynamicSkill: dynamic ? dynamic.skill : '', information: kind === 'information' ? result || inactiveReason : '',
-      witchChoices: ['不用药', '使用解药', '使用毒药'], witchChoiceIndex: Math.max(0, ['none', 'save', 'poison'].indexOf(value.choice || 'none')),
+      result, mimicResult, optional: definition.required !== true && definition.optional !== false, dynamicSkill: dynamic ? dynamic.skill : '', information: kind === 'information' ? result || inactiveReason : '',
+      witchChoices: actionId === 'hiddenWolfAbility' ? ['不用药', '使用毒药'] : ['不用药', '使用解药', '使用毒药'], witchChoiceValues: actionId === 'hiddenWolfAbility' ? ['none', 'poison'] : ['none', 'save', 'poison'], witchChoiceIndex: Math.max(0, (actionId === 'hiddenWolfAbility' ? ['none', 'poison'] : ['none', 'save', 'poison']).indexOf(value.choice || 'none')),
       resourceText: actionId === 'witch' ? `解药：${game.resources.antidote ? '可用' : '已用'}　毒药：${game.resources.poison ? '可用' : '已用'}` : ''
     }
   })
@@ -497,7 +531,7 @@ function getGuidedFirstNightAction(game, board) {
   if (!isGuidedFirstNight(game)) return null
   const state = normalizeIdentityAssignment(game, board)
   if (getIdentityAssignmentPrompt(game, board)) return null
-  const actionId = board.nightSequence[state.actionIndex]
+  const actionId = getNightSequence(game, board)[state.actionIndex]
   if (!actionId) return null
   return getNightActionCards(game, board).find(card => card.id === actionId) || null
 }
@@ -525,7 +559,7 @@ function completeGuidedFirstNightAction(game, board) {
 function guidedFirstNightReadyToSettle(game, board) {
   if (!isGuidedFirstNight(game)) return true
   const state = normalizeIdentityAssignment(game, board)
-  return Boolean(state.complete && state.actionIndex >= board.nightSequence.length)
+  return Boolean(state.complete && state.actionIndex >= getNightSequence(game, board).length)
 }
 
 function getWolfTeamNumbers(game) {

@@ -53,12 +53,59 @@ function resolveAllDeathPrompts(game) {
 }
 
 {
+  const board = getBoard('mirrorMystery12')
+  const game = engine.makeGame(board, boardRoles(board.id))
+  assert.deepEqual(engine.getNightActionCards(game, board).map(card => card.id), ['mirrorGirlSignal', 'guard', 'wolves', 'witch', 'hunterStatus', 'awakenedHiddenWolf', 'mirrorGirl'])
+  const guided = engine.makeFirstNightIdentityGame(board)
+  assert.equal(engine.getIdentityAssignmentPrompt(guided, board).closedEyeSignal, true, '首项身份登记必须保持闭眼')
+  const hidden = game.seats.find(seat => seat.roleId === 'awakenedHiddenWolf')
+  const witch = game.seats.find(seat => seat.roleId === 'witch')
+  const expectedSkills = { wolf: '一次性额外爪击', mirrorGirl: '不能重复查验', witch: '没有解药', guard: '被女巫毒出局', hunter: '一并出局', villager: '没有可发动' }
+  for (const [roleId, text] of Object.entries(expectedSkills)) {
+    const target = game.seats.find(seat => seat.roleId === roleId)
+    engine.setNightActionTarget(game, 'awakenedHiddenWolf', target.number)
+    const card = engine.getNightActionCards(game, board).find(item => item.id === 'awakenedHiddenWolf')
+    assert.equal(card.result, target.roleName, '模仿结果应显示具体身份')
+    assert.equal(card.mimicResult.roleName, target.roleName)
+    assert.ok(card.mimicResult.skill.includes(text), `${roleId}应显示文档规定的模仿技能`)
+    if (roleId === 'hunter') assert.ok(card.mimicResult.timing.includes('天亮起'))
+    if (['witch', 'guard', 'mirrorGirl'].includes(roleId)) assert.equal(card.mimicResult.timing, '下一夜起可使用。')
+  }
+  engine.clearNightAction(game, 'awakenedHiddenWolf')
+  assert.equal(engine.getNightActionCards(game, board).find(item => item.id === 'awakenedHiddenWolf').mimicResult, null, '取消模仿应清除技能说明')
+  engine.setNightActionTarget(game, 'awakenedHiddenWolf', witch.number)
+  assert.equal(engine.inspectionResult(game, 'mirrorGirl', hidden.number), '女巫', '首夜学习后魔镜少女应立即验出模仿身份')
+  game.day = 2
+  game.night.actions = {}
+  Object.assign(game.special.awakenedHiddenWolf, { mimickedRoleId: 'wolf', mimicDay: 1 })
+  let cards = engine.getNightActionCards(game, board)
+  assert.deepEqual(cards.map(card => card.id), ['guard', 'hiddenWolfStatus', 'wolves', 'witch', 'mirrorGirl', 'hiddenWolfAbility', 'hunterStatus'])
+  assert.equal(cards.find(card => card.id === 'hiddenWolfAbility').enabled, false, '模仿狼人但狼队仍存活时不能使用额外刀')
+  game.seats.filter(seat => seat.roleId === 'wolf').forEach(seat => { seat.alive = false })
+  cards = engine.getNightActionCards(game, board)
+  assert.equal(cards.find(card => card.id === 'hiddenWolfAbility').enabled, true, '接管狼刀时获得额外爪击')
+  assert.ok(cards.find(card => card.id === 'hiddenWolfStatus').information.includes('额外爪击：可用'))
+  engine.setNightActionTarget(game, 'hiddenWolfAbility', witch.number)
+  engine.settleNight(game)
+  assert.equal(witch.alive, false, '额外爪击应结算出局')
+  assert.equal(game.special.awakenedHiddenWolf.extraClawUsed, true)
+  game.day = 3
+  assert.equal(engine.getNightActionCards(game, board).find(card => card.id === 'hiddenWolfAbility').enabled, false, '额外爪击不可重复使用')
+  const poisonGame = engine.makeGame(board, boardRoles(board.id))
+  poisonGame.day = 2
+  Object.assign(poisonGame.special.awakenedHiddenWolf, { mimickedRoleId: 'witch', mimicDay: 1 })
+  const poisonCard = engine.getNightActionCards(poisonGame, board).find(card => card.id === 'hiddenWolfAbility')
+  assert.deepEqual(poisonCard.witchChoiceValues, ['none', 'poison'], '复制女巫只有毒药，不可出现解药')
+}
+
+{
   assert.equal(boards.length, 19, '文档中的19个板子都应可以开局')
   boards.forEach(board => {
-    assert.equal(board.nightSequence[board.nightSequence.length - 1], board.roleCounts.seer ? 'seer' : board.id === 'pureWhiteNight12' ? 'pureWhiteGirl' : board.id === 'mirrorMystery12' ? 'mirrorGirl' : board.nightSequence[board.nightSequence.length - 1], `${board.name}的查验身份应收在夜间流程末尾`)
+    assert.equal(board.nightSequence[board.nightSequence.length - 1], board.roleCounts.seer ? 'seer' : board.id === 'pureWhiteNight12' ? 'pureWhiteGirl' : board.id === 'mirrorMystery12' ? 'hunterStatus' : board.nightSequence[board.nightSequence.length - 1], `${board.name}应按板子规定结束夜间流程`)
   })
   const hiddenOrder = getBoard('mirrorMystery12').nightSequence
-  assert.ok(hiddenOrder.indexOf('awakenedHiddenWolf') < hiddenOrder.indexOf('wolves'), '觉醒隐狼必须先于狼刀行动')
+  assert.ok(hiddenOrder.indexOf('hiddenWolfStatus') < hiddenOrder.indexOf('wolves'), '觉醒隐狼必须先于狼刀检查刀状态')
+  assert.ok(hiddenOrder.indexOf('hiddenWolfAbility') > hiddenOrder.indexOf('mirrorGirl'), '觉醒隐狼复制技能应在魔镜少女之后')
   const kingOrder = getBoard('awakenedWolfKing12').nightSequence
   assert.equal(kingOrder.indexOf('awakenedWolfKing'), kingOrder.indexOf('wolves') + 1, '觉醒狼王必须紧跟狼刀行动')
   ;[['wolfBeautyKnight12', 'wolfBeauty'], ['gargoyleGravedigger12', 'gargoyle'], ['pureWhiteNight12', 'wolfWitch'], ['fogCrow12', 'wolfCrowClaw']].forEach(([boardId, actionId]) => {
@@ -69,7 +116,7 @@ function resolveAllDeathPrompts(game) {
     const game = engine.makeFirstNightIdentityGame(board)
     completeGuidedFirstNight(game, board)
     assert.equal(game.identityAssignment.complete, true, `${board.name}迷糊法官第一夜结束前应确认全部身份`)
-    assert.equal(game.identityAssignment.actionIndex, board.nightSequence.length, `${board.name}迷糊法官应按配置完成全部夜间行动`)
+    assert.equal(game.identityAssignment.actionIndex, (board.firstNightSequence || board.nightSequence).length, `${board.name}迷糊法官应按配置完成全部夜间行动`)
   })
 }
 

@@ -8,13 +8,12 @@
   <view class="config-summary">
     <view class="summary-label">当前配置</view>
     <view wx:if="{{summaryItems.length}}" class="summary-tags"><text wx:for="{{summaryItems}}" wx:key="id" class="summary-tag {{item.tone}}">{{item.name}} {{item.count}}</text></view>
-    <view wx:else class="muted">从下方选择身份与号码牌</view>
+    <view wx:else class="muted">尚未配置身份</view>
   </view>
 
   <view class="first-night-identity-card tap-surface" bindtap="startFirstNightIdentityGame">
     <view class="identity-entry-top"><view><view class="identity-entry-kicker">迷糊法官模式</view><view class="identity-entry-title">第一夜确认身份</view></view><text class="identity-entry-arrow">›</text></view>
-    <view class="identity-entry-copy">适合身份牌已经随机发给玩家、法官开局还不知道各号码身份的情况。点击后进入第一夜，按板子顺序依次确认当前身份、立即操作，再进入下一张身份牌。</view>
-    <view class="identity-entry-note">无需在本页配置号码，也不会覆盖下方已有的身份草稿。</view>
+    <view class="identity-entry-copy">在第一夜确认身份并完成行动。</view>
   </view>
 
   <view class="setup-divider"><text>或由法官提前录入身份</text></view>
@@ -25,17 +24,15 @@
   </view>
 
   <block wx:if="{{mode === 'role'}}">
-    <view class="muted instruction">先选择身份，再点击号码牌；再次点击同一身份可取消。</view>
     <block wx:for="{{roleGroups}}" wx:key="name">
       <view class="camp-heading"><text class="camp-dot {{item.tone}}"></text><text>{{item.name}}</text></view>
       <view class="role-grid"><view wx:for="{{item.items}}" wx:key="id" class="role-card tap-surface {{item.tone}} {{item.selected ? 'selected' : ''}}" data-role-id="{{item.id}}" bindtap="selectRole"><view class="role-card-top"><text>{{item.name}}</text><text class="role-count">{{item.count}}/{{item.capacity}}</text></view><view class="role-numbers">{{item.assignedText}}</view></view></view>
     </block>
-    <view class="seat-section-heading"><view class="subtitle">选择号码牌</view><view class="muted">已选身份将高亮</view></view>
+    <view class="seat-section-heading"><view class="subtitle">号码牌</view></view>
     <view class="number-grid"><view wx:for="{{numberCards}}" wx:key="number" class="number-card tap-surface {{item.isAssigned ? 'assigned-seat' : ''}} {{item.isSelectedRole ? 'selected-role' : ''}}" data-number="{{item.number}}" bindtap="selectSeat"><view class="seat-number">{{item.number}}<text>号</text></view><view class="number-role">{{item.roleLabel}}</view></view></view>
   </block>
 
   <block wx:else>
-    <view class="muted instruction">先选择号码牌，再选择身份；再次点击已选身份可取消。</view>
     <view class="number-grid"><view wx:for="{{numberCards}}" wx:key="number" class="number-card tap-surface {{item.isAssigned ? 'assigned-seat' : ''}} {{item.selected ? 'selected-seat' : ''}}" data-number="{{item.number}}" bindtap="selectSeat"><view class="seat-number">{{item.number}}<text>号</text></view><view class="number-role">{{item.roleLabel}}</view></view></view>
     <block wx:for="{{roleGroups}}" wx:key="name">
       <view class="camp-heading"><text class="camp-dot {{item.tone}}"></text><text>{{item.name}}</text></view>

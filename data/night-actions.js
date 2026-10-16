@@ -1,4 +1,7 @@
 const nightActionDefinitions = {
+  mirrorGirlSignal: { id: 'mirrorGirlSignal', roleId: 'mirrorGirl', name: '魔镜少女闭眼示意', kind: 'information', closedEyeSignal: true },
+  hiddenWolfStatus: { id: 'hiddenWolfStatus', roleId: 'awakenedHiddenWolf', name: '觉醒隐狼检查刀状态', kind: 'information' },
+  hunterStatus: { id: 'hunterStatus', roleId: 'hunter', name: '猎人确认技能状态', kind: 'information' },
   magician: { id: 'magician', roleId: 'magician', name: '魔术师行动', kind: 'multiTarget', targetCount: 2, optional: true },
   nightmare: { id: 'nightmare', roleId: 'nightmare', name: '噩梦之影恐惧', kind: 'target', optional: true, excludeSelf: true },
   lonelyGirl: { id: 'lonelyGirl', roleId: 'lonelyGirl', name: '孤独少女崇拜', kind: 'target', firstNightOnly: true, required: true, excludeSelf: true },
@@ -6,7 +9,17 @@ const nightActionDefinitions = {
   luckySkill: { id: 'luckySkill', name: '幸运儿行动', kind: 'dynamicSkill', optional: true },
   timeWolfConsort: { id: 'timeWolfConsort', roleId: 'timeWolfConsort', name: '蚀时狼妃封锁', kind: 'target', optional: true },
   awakenedWolfKing: { id: 'awakenedWolfKing', roleId: 'awakenedWolfKing', name: '觉醒狼王亲传', kind: 'target', optional: true, wolfTargetOnly: true, excludeSelf: true },
-  awakenedHiddenWolf: { id: 'awakenedHiddenWolf', roleId: 'awakenedHiddenWolf', name: '觉醒隐狼模仿', kind: 'target', optional: true, excludeSelf: true, requiresAllIdentities: true },
+  awakenedHiddenWolf: {
+    id: 'awakenedHiddenWolf', roleId: 'awakenedHiddenWolf', name: '觉醒隐狼模仿', kind: 'target', optional: true, excludeSelf: true, requiresAllIdentities: true,
+    copiedSkills: {
+      wolf: { description: '其他狼人全部出局后接管普通狼刀，并在加入狼队的当夜获得一次性额外爪击。模仿不会使其立即加入狼队或与狼人交流。', timing: '额外爪击须在加入狼队时获得。' },
+      mirrorGirl: { description: '每晚查验一名其他玩家的具体身份，不能重复查验。', timing: '下一夜起可使用。' },
+      witch: { description: '获得一瓶毒药，可使一名玩家夜间出局；没有解药。', timing: '下一夜起可使用。' },
+      guard: { description: '每晚守护一名玩家，防止其被爪击或被女巫毒出局。', timing: '下一夜起可使用。' },
+      hunter: { description: '出局后可选择一名玩家，使其一并出局。', timing: '本夜结束后的天亮起，出局时可按规则发动。' },
+      villager: { description: '没有可发动的角色技能。', timing: '' }
+    }
+  },
   alchemistWitch: { id: 'alchemistWitch', roleId: 'alchemistWitch', name: '炼金魔女末明之雾', kind: 'multiTarget', targetCount: 3, optional: true },
   eclipseMaid: { id: 'eclipseMaid', roleId: 'eclipseMaid', name: '蚀日侍女吞噬', kind: 'target', optional: true, excludeSelf: true, fromDay: 2, requiresAllIdentities: true },
   eclipseMaidAbility: { id: 'eclipseMaidAbility', roleId: 'eclipseMaid', name: '蚀日侍女继承技能', kind: 'dynamicSkill', optional: true, fromDay: 2 },

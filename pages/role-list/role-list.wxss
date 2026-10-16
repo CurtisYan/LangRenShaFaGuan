@@ -1,5 +1,10 @@
 .role-list-page { padding-top: 50rpx; }
-.role-list-hero { margin: 0 5rpx 42rpx; }
+.role-list-hero { margin: 0 5rpx 28rpx; }
+.role-search { display: flex; align-items: center; gap: 16rpx; min-height: 80rpx; margin-bottom: 24rpx; padding: 0 20rpx; border: 1rpx solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
+.role-search-input { flex: 1; min-width: 0; height: 80rpx; color: var(--color-ink); font-size: 28rpx; }
+.role-search-placeholder { color: var(--color-ink-muted); }
+.role-search-clear { display: flex; align-items: center; justify-content: center; width: 56rpx; height: 64rpx; color: var(--color-ink-muted); font-size: 34rpx; }
+.role-search-empty { padding: 64rpx 0; color: var(--color-ink-muted); font-size: 26rpx; text-align: center; }
 .role-list-row { display: flex; min-height: 88rpx; align-items: center; justify-content: space-between; gap: 20rpx; padding: 18rpx 2rpx; }
 .role-title { display: flex; align-items: center; gap: 9rpx; color: var(--color-ink); font-size: 30rpx; font-weight: 600; }
 .role-title .tag { min-height: 30rpx; margin: 0; padding: 4rpx 10rpx; font-size: 20rpx; font-weight: 500; }

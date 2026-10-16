@@ -32,10 +32,20 @@ Page({
     const identityPrompt = engine.getIdentityAssignmentPrompt(game, board)
     const registeredCount = game.seats.filter(seat => seat.roleId).length
     const guidedNightAction = guidedFirstNight && !identityPrompt ? engine.getGuidedFirstNightAction(game, board) : null
-    const nightActionCards = game.phase !== 'night' || identityPrompt ? [] : guidedFirstNight ? (guidedNightAction ? [guidedNightAction] : []) : engine.getNightActionCards(game, board)
+    if (guidedNightAction && !guidedNightAction.hostLine) {
+      const actor = game.seats.find(seat => seat.number === guidedNightAction.actorNumber)
+      if (actor) guidedNightAction.hostLine = `${guidedNightAction.id === 'wolves' ? '狼人' : actor.roleName}请睁眼。`
+    }
+    const identityCard = identityPrompt ? {
+      id: identityPrompt.actionId || `identity-${identityPrompt.roleId}`,
+      order: String(game.identityAssignment.actionIndex + 2).padStart(2, '0'),
+      awaitingIdentity: true,
+      hostLine: identityPrompt.closedEyeSignal ? `${identityPrompt.roleName}请保持闭眼，举手示意。` : `${identityPrompt.roleName}请睁眼。`
+    } : null
+    const nightActionCards = game.phase !== 'night' ? [] : identityCard ? [identityCard] : guidedFirstNight ? (guidedNightAction ? [guidedNightAction] : []) : engine.getNightActionCards(game, board)
     const deathPrompt = game.dayState && game.dayState.stage === 'deathSkills' && game.pendingDeathSkills && game.pendingDeathSkills[0]
     const lastWordPrompt = game.status === 'playing' && game.dayState && game.dayState.stage === 'lastWords' && game.pendingLastWords && game.pendingLastWords[0]
-    const sheriffTransferStages = ['deathSkills', 'lastWords', 'discussion', 'exileDone', 'selfExposeNight']
+    const sheriffTransferStages = ['deathSkills', 'lastWords', 'sheriffOrder', 'discussion', 'exileDone', 'selfExposeNight']
     const sheriffTransferReady = game.status === 'playing' && !(game.pendingDeathSkills && game.pendingDeathSkills.length) && !game.pendingWolfKingClaw
     const sheriffTransferPrompt = sheriffTransferReady && game.pendingSheriffTransfer && game.dayState && sheriffTransferStages.includes(game.dayState.stage) ? game.pendingSheriffTransfer : null
     const sheriffTransferTargets = sheriffTransferPrompt ? aliveSeats.filter(seat => seat.number !== sheriffTransferPrompt.seatNumber && !seat.foolRevealed) : []
@@ -61,14 +71,14 @@ Page({
       choosingSkillTarget: deathPrompt && this.data.choosingSkillTarget && this.data.pendingSkill && this.data.pendingSkill.number === deathPrompt.seatNumber,
       skillTargetLabels: aliveSeats.map(seat => `${seat.number}号`), selectedSkillTargetIndex: 0,
       identityAssignmentPending: Boolean(identityPrompt),
-      identityRole: identityPrompt ? { id: identityPrompt.roleId, name: identityPrompt.roleName, required: identityPrompt.required, selectedCount: identityPrompt.selectedSeatNumbers.length, nextActionName: identityPrompt.actionName } : null,
+      identityRole: identityPrompt ? { id: identityPrompt.roleId, name: identityPrompt.roleName, closedEyeSignal: identityPrompt.closedEyeSignal, required: identityPrompt.required, selectedCount: identityPrompt.selectedSeatNumbers.length, nextActionName: identityPrompt.actionName } : null,
       identitySeatCards: identityPrompt ? game.seats.map(seat => ({ number: seat.number, roleName: seat.roleName, assigned: Boolean(seat.roleId), selected: identityPrompt.selectedSeatNumbers.includes(seat.number) })) : [],
       identityCanConfirm: Boolean(identityPrompt && identityPrompt.selectedSeatNumbers.length === identityPrompt.required),
       identityProgressText: identityPrompt ? `已确认 ${registeredCount} / ${game.seats.length} 人` : '',
       identityProgressPercent: identityPrompt ? Math.round(registeredCount / game.seats.length * 100) : 100,
       guidedFirstNight,
       guidedNightActionPending: Boolean(guidedNightAction),
-      nightFlowProgressText: guidedFirstNight ? (guidedNightAction ? `第 ${game.identityAssignment.actionIndex + 1} / ${board.nightSequence.length} 项` : '身份与行动已完成') : '按顺序照读',
+      nightFlowProgressText: guidedFirstNight ? (identityPrompt || guidedNightAction ? `第 ${game.identityAssignment.actionIndex + 1} / ${(board.firstNightSequence || board.nightSequence).length} 项` : '身份与行动已完成') : '',
       nightActionCards,
       seatCards, voteHistory, selectedVoteHistoryIndex: voteIndex, selectedVoteRound, selectedVoteRows, canGoBack: Boolean(latestStep),
       ...dayView
@@ -134,16 +144,14 @@ Page({
   completeHold(event) {
     const key = event.currentTarget.dataset.holdKey
     if (this._holdKey !== key) return
-    const number = Number(event.currentTarget.dataset.number)
     this.clearHold()
     if (key === 'back') return this.goBackStep()
-    return this.withdrawSheriffCandidate(number)
   },
   endHold(event) {
     const key = event.currentTarget.dataset.holdKey
     if (this._holdKey !== key) return
     this.clearHold()
-    this.toast(key === 'back' ? '请长按返回上一步' : '请长按号码退水')
+    this.toast('请长按返回上一步')
   },
   cancelHold() { this.clearHold() },
   clearHold() {
@@ -168,7 +176,12 @@ Page({
     const game = this.data.game
     if (!this.data.identityCanConfirm) return this.toast(`请选满${this.data.identityRole.required}个号码`)
     this.checkpoint(game, `确认${this.data.identityRole.name}身份`)
-    try { engine.completeIdentityAssignment(game, this.data.board) } catch (error) { return this.toast(error.message) }
+    try {
+      engine.completeIdentityAssignment(game, this.data.board)
+      const action = engine.getGuidedFirstNightAction(game, this.data.board)
+      // 闭眼示意只登记号码，确认后直接进入下一环节。
+      if (action && action.closedEyeSignal) engine.completeGuidedFirstNightAction(game, this.data.board)
+    } catch (error) { return this.toast(error.message) }
     this.saveAndRefresh(game)
   },
   completeGuidedNightAction() {
@@ -183,7 +196,7 @@ Page({
     game.sheriffSeat = number
     game.sheriffElectionDone = true
     game.sheriffElectionInterrupted = false
-    game.dayState.stage = 'sheriffOrder'
+    game.dayState.stage = game.special.alchemistWitch.pendingWolfTarget ? (game.day === 1 ? 'alchemistSnake' : 'sheriffOrder') : 'announceNight'
     game.dayState.message = ''
     engine.addLog(game, `第${game.day}天：${number}号当选警长（${reason}）`)
     this.saveAndRefresh(game)
@@ -233,7 +246,7 @@ Page({
     const actionId = event.currentTarget.dataset.actionId
     const card = this.data.nightActionCards.find(item => item.id === actionId)
     if (!card) return
-    const choice = card.kind === 'witch' ? ['none', 'save', 'poison'][Number(event.detail.value)] : card.choiceValues[Number(event.detail.value)]
+    const choice = card.kind === 'witch' ? card.witchChoiceValues[Number(event.detail.value)] : card.choiceValues[Number(event.detail.value)]
     const game = this.data.game
     if (actionId === 'witch' && choice === 'save') {
       if (!game.resources.antidote) return this.toast('解药已经使用')
@@ -290,7 +303,7 @@ Page({
       if (game.status === 'ended') state.stage = 'exileDone'
       else if (game.pendingLastWords && game.pendingLastWords.length) state.stage = 'lastWords'
       else {
-        state.stage = state.afterDeathStage || (state.endAfterDeathSkills ? 'selfExposeNight' : 'discussion')
+        state.stage = this.afterDeathStage(game)
         delete state.afterDeathStage
       }
     }
@@ -302,13 +315,18 @@ Page({
     game.pendingLastWords.shift()
     if (!game.pendingLastWords.length) {
       const state = game.dayState
-      state.stage = state.afterDeathStage || (state.endAfterDeathSkills ? 'selfExposeNight' : 'discussion')
+      state.stage = this.afterDeathStage(game)
       delete state.afterDeathStage
     }
     this.saveAndRefresh(game)
   },
   selectSheriffTransferTarget(event) { this.setData({ selectedSheriffTransferIndex: Number(event.detail.value) }) },
-  tearSheriffBadge() { const game = this.data.game; this.checkpoint(game, '撕毁警徽'); engine.resolveSheriffTransfer(game, null); this.saveAndRefresh(game) },
+  afterDeathStage(game) {
+    const state = game.dayState
+    const next = state.afterDeathStage || (state.endAfterDeathSkills ? 'selfExposeNight' : 'discussion')
+    return next === 'sheriffOrder' && !game.sheriffSeat ? 'discussion' : next
+  },
+  tearSheriffBadge() { const game = this.data.game; this.checkpoint(game, '撕毁警徽'); engine.resolveSheriffTransfer(game, null); if (game.dayState.stage === 'sheriffOrder') game.dayState.stage = 'discussion'; this.saveAndRefresh(game) },
   transferSheriffBadge() {
     const target = this.data.sheriffTransferTargets[this.data.selectedSheriffTransferIndex]
     if (!target) return this.toast('没有可移交警徽的玩家')
@@ -379,8 +397,8 @@ Page({
     this.electSheriff(game, winners[0], '警长投票胜出')
   },
   restartSheriffVote() { const game = this.data.game; this.checkpoint(game, '开始警长PK发言'); game.dayState.sheriffVotes = {}; game.dayState.stage = 'sheriffSpeech'; game.dayState.message = ''; this.saveAndRefresh(game) },
-  noSheriff() { const game = this.data.game; this.checkpoint(game, '警徽流失'); game.sheriffElectionDone = true; game.dayState.stage = game.special.alchemistWitch.pendingWolfTarget ? 'alchemistDiscussion' : 'announceNight'; engine.addLog(game, `第${game.day}天：警长竞选平票，警徽流失`); this.saveAndRefresh(game) },
-  setSpeakingOrder(event) { const game = this.data.game; const direction = event.currentTarget.dataset.direction; this.checkpoint(game, '警长决定发言顺序'); game.dayState.stage = game.special.alchemistWitch.pendingWolfTarget ? 'alchemistDiscussion' : 'announceNight'; game.dayState.speakingOrder = direction; engine.addLog(game, `第${game.day}天：警长决定${direction === 'clockwise' ? '顺序' : '逆序'}发言`); this.saveAndRefresh(game) },
+  noSheriff() { const game = this.data.game; this.checkpoint(game, '警徽流失'); game.sheriffElectionDone = true; game.dayState.stage = game.special.alchemistWitch.pendingWolfTarget ? (game.day === 1 ? 'alchemistSnake' : 'alchemistDiscussion') : 'announceNight'; engine.addLog(game, `第${game.day}天：警徽流失`); this.saveAndRefresh(game) },
+  setSpeakingOrder(event) { const game = this.data.game; const direction = event.currentTarget.dataset.direction; this.checkpoint(game, '警长决定发言顺序'); game.dayState.stage = game.special.alchemistWitch.pendingWolfTarget ? 'alchemistDiscussion' : 'discussion'; game.dayState.speakingOrder = direction; engine.addLog(game, `第${game.day}天：警长决定${direction === 'clockwise' ? '顺序' : '逆序'}发言`); this.saveAndRefresh(game) },
   finishAlchemistDiscussion() { const game = this.data.game; this.checkpoint(game, '炼金魔女板子放逐发言结束'); game.dayState.discussionBeforeNight = true; game.dayState.stage = 'alchemistSnake'; this.saveAndRefresh(game) },
   triggerKnightDuel() {
     const knight = this.data.game.seats.find(seat => seat.alive && seat.roleId === 'knight')
@@ -395,7 +413,7 @@ Page({
     } })
   },
   resolveAlchemistSnake(event) { const game = this.data.game; const use = event.currentTarget.dataset.use === 'yes'; this.checkpoint(game, use ? '使用法老之蛇' : '不使用法老之蛇'); try { engine.resolveAlchemistSnake(game, use) } catch (error) { return this.toast(error.message) } game.dayState.stage = 'announceNight'; this.saveAndRefresh(game) },
-  announceNightDeaths() { const game = this.data.game; this.checkpoint(game, '公布昨夜信息'); engine.addLog(game, `第${game.day}天：${this.nightDeathText(game)}`); const nextStage = game.dayState.endAfterDeathSkills ? 'selfExposeNight' : (game.dayState.discussionBeforeNight ? 'exileVote' : 'discussion'); game.dayState.afterDeathStage = nextStage; game.dayState.stage = game.pendingDeathSkills.length ? 'deathSkills' : game.pendingLastWords && game.pendingLastWords.length ? 'lastWords' : nextStage; this.saveAndRefresh(game) },
+  announceNightDeaths() { const game = this.data.game; this.checkpoint(game, '公布昨夜信息'); engine.addLog(game, `第${game.day}天：${this.nightDeathText(game)}`); const nextStage = game.dayState.endAfterDeathSkills ? 'selfExposeNight' : (game.dayState.discussionBeforeNight ? 'exileVote' : game.sheriffSeat ? 'sheriffOrder' : 'discussion'); game.dayState.afterDeathStage = nextStage; game.dayState.stage = game.pendingDeathSkills.length ? 'deathSkills' : game.pendingLastWords && game.pendingLastWords.length ? 'lastWords' : nextStage; this.saveAndRefresh(game) },
   beginExileVote() { const game = this.data.game; this.checkpoint(game, game.dayState.stage === 'exileTie' ? '开始放逐PK发言' : '开始放逐投票'); if (game.dayState.stage === 'exileTie') { game.dayState.exileVotes = {}; game.dayState.simpleVoteCounts = {} } game.dayState.stage = 'exileVote'; this.saveAndRefresh(game) },
   setExileMode(event) { const game = this.data.game; game.dayState.exileMode = event.currentTarget.dataset.mode; this.saveAndRefresh(game) },
   inputSimpleVoteCount(event) { this.setData({ simpleVoteCount: event.detail.value }) },
