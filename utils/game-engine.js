@@ -544,6 +544,12 @@ function requiredNightActionIncomplete(card) {
   return false
 }
 
+function seerActionLog(card) {
+  return card.enabled && card.selectedTarget
+    ? `预言家查验${card.selectedTarget}号，身份为${card.result}`
+    : '预言家没有查验'
+}
+
 function completeGuidedFirstNightAction(game, board) {
   if (!isGuidedFirstNight(game)) throw new Error('当前不在迷糊法官第一夜流程')
   if (getIdentityAssignmentPrompt(game, board)) throw new Error('请先确认当前身份号码')
@@ -552,7 +558,7 @@ function completeGuidedFirstNightAction(game, board) {
   if (!card) throw new Error('当前没有待完成的夜间行动')
   if (requiredNightActionIncomplete(card)) throw new Error(`请先完成${card.name}`)
   state.actionIndex += 1
-  addLog(game, `第一夜流程：${card.name}完成`)
+  addLog(game, `第一夜流程：${card.id === 'seer' ? seerActionLog(card) : `${card.name}完成`}`)
   return state.actionIndex
 }
 
@@ -757,6 +763,11 @@ function settleNight(game) {
     if (game.night.guardTarget) setNightActionTarget(game, 'guard', game.night.guardTarget)
     if (game.night.seerTarget) setNightActionTarget(game, 'seer', game.night.seerTarget)
     if (game.night.witchAction) setWitchAction(game, game.night.witchAction, game.night.witchTarget)
+  }
+
+  if (!isGuidedFirstNight(game)) {
+    const seerCard = getNightActionCards(game, getBoard(game.boardId)).find(card => card.id === 'seer')
+    if (seerCard) addLog(game, `第${game.day}夜：${seerActionLog(seerCard)}`)
   }
 
   const events = []

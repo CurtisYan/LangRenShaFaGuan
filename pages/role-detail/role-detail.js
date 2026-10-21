@@ -8,7 +8,7 @@ const fallbackRoles = {
 
 function parseRoleDocument(document) {
   const sections = []
-  document.markdown.split(/^### /m).filter(Boolean).forEach(part => {
+  document.markdown.replace(/^[ \t]*-{3,}[ \t]*$/gm, '').split(/^### /m).filter(Boolean).forEach(part => {
     const lineEnd = part.indexOf('\n')
     const title = part.slice(0, lineEnd).trim()
     const content = part.slice(lineEnd + 1).trim()
@@ -31,7 +31,7 @@ Page({
     const document = roleDocuments[query.roleId]
     const role = roles[query.roleId] || fallbackRoles[query.roleId] || { name: '孤独少女', camp: '神职' }
     const sections = document ? parseRoleDocument(document) : (fallbackRoles[query.roleId] || { sections: [{ title: '资料说明', paragraphs: ['当前资料库尚未收录该身份的独立角色专章。'] }] }).sections
-    this.setData({ role: { id: query.roleId, name: document ? document.title : role.name, camp: role.group || role.camp }, sections, sourceNote: document ? '以下内容完整整理自《角色描述与QA》。' : '以下内容请结合对应板子规则使用。' })
+    this.setData({ role: { id: query.roleId, name: document ? document.title : role.name, camp: role.group || role.camp }, sections, sourceNote: document ? '' : '以下内容请结合对应板子规则使用。' })
     wx.setNavigationBarTitle({ title: document ? document.title : role.name })
   }
 })

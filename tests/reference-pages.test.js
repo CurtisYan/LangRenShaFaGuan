@@ -37,4 +37,15 @@ rolePage.onLoad.call(rolePage, { roleId: 'cursedFox' })
 const qa = rolePage.data.sections.find(section => section.isQa)
 assert.equal(qa.qas.length, 5, '咒狐完整 Q&A 应可展示')
 
+Object.keys(roleDocuments).forEach(roleId => {
+  rolePage.onLoad.call(rolePage, { roleId })
+  assert.equal(rolePage.data.sourceNote, '', `${roleId}不应展示来源提示语`)
+  rolePage.data.sections.forEach(section => {
+    const texts = section.isQa ? section.qas.map(item => item.answer) : section.paragraphs
+    texts.forEach(text => assert.equal(/^[ \t]*-{3,}[ \t]*$/m.test(text), false, `${roleId}正文不应混入章节分隔线`))
+  })
+})
+rolePage.onLoad.call(rolePage, { roleId: 'villager' })
+assert.equal(rolePage.data.sections.find(section => section.isQa).qas[0].answer, '认真听别人发言进行分析，自己踊跃发言不要过麦，表明自己的身份，勇于为自己心目中的预言家投票，很快就能上手啦。', '平民答案应保留完整正文并去除末尾分隔线')
+
 console.log('reference page tests passed')

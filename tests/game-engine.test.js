@@ -52,6 +52,36 @@ function resolveAllDeathPrompts(game) {
   while (game.pendingDeathSkills.length) engine.resolveDeathSkill(game, game.pendingDeathSkills[0].seatNumber, false)
 }
 
+for (const [target, expected] of [[1, '预言家查验1号，身份为狼人'], [5, '预言家查验5号，身份为好人'], [null, '预言家没有查验']]) {
+  const game = fresh()
+  if (target) engine.setNightActionTarget(game, 'seer', target)
+  engine.settleNight(game)
+  assert.ok(game.logs.some(log => log.text === `第1夜：${expected}`), '提前录入身份时应记录实际查验或未查验')
+  engine.nextNight(game)
+  if (target) engine.setNightActionTarget(game, 'seer', target)
+  engine.settleNight(game)
+  assert.ok(game.logs.some(log => log.text === `第2夜：${expected}`), '后续夜晚应记录实际查验或未查验')
+}
+
+for (const target of [1, 5, null]) {
+  const board = getBoard('standard12')
+  const game = engine.makeFirstNightIdentityGame(board)
+  while (!engine.guidedFirstNightReadyToSettle(game, board)) {
+    if (confirmCurrentIdentity(game, board)) continue
+    const card = engine.getGuidedFirstNightAction(game, board)
+    completeRequiredAction(game, card)
+    if (card.id === 'seer' && target) engine.setNightActionTarget(game, 'seer', target)
+    engine.completeGuidedFirstNightAction(game, board)
+    if (card.id === 'seer') {
+      const expected = target ? `预言家查验${target}号，身份为${engine.inspectionResult(game, 'seer', target)}` : '预言家没有查验'
+      assert.equal(game.logs[0].text, `第一夜流程：${expected}`, '第一夜完成行动时应记录目标及结果或没有查验')
+    }
+  }
+  engine.settleNight(game)
+  assert.equal(game.logs.filter(log => /预言家查验\d+号|预言家没有查验/.test(log.text)).length, 1, '第一夜结算不应重复记录查验')
+  assert.ok(game.logs.every(log => !log.text.includes('预言家查验完成')), '不应再使用通用查验完成日志')
+}
+
 {
   const board = getBoard('mirrorMystery12')
   const game = engine.makeGame(board, boardRoles(board.id))
