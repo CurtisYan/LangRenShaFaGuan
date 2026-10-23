@@ -129,16 +129,17 @@ for (const target of [1, 5, null]) {
 }
 
 {
-  assert.equal(boards.length, 19, '文档中的19个板子都应可以开局')
+  assert.equal(boards.length, 22, '文档中的22个板子都应可以开局')
   boards.forEach(board => {
-    assert.equal(board.nightSequence[board.nightSequence.length - 1], board.roleCounts.seer ? 'seer' : board.id === 'pureWhiteNight12' ? 'pureWhiteGirl' : board.id === 'mirrorMystery12' ? 'hunterStatus' : board.nightSequence[board.nightSequence.length - 1], `${board.name}应按板子规定结束夜间流程`)
+    const expectedLastAction = board.roleCounts.seer ? 'seer' : board.id === 'pureWhiteNight12' ? 'pureWhiteGirl' : board.id === 'mirrorMystery12' ? 'hunterStatus' : board.id === 'mirrorMystery10' ? 'hiddenWolfAbility' : board.nightSequence[board.nightSequence.length - 1]
+    assert.equal(board.nightSequence[board.nightSequence.length - 1], expectedLastAction, `${board.name}应按板子规定结束夜间流程`)
   })
   const hiddenOrder = getBoard('mirrorMystery12').nightSequence
   assert.ok(hiddenOrder.indexOf('hiddenWolfStatus') < hiddenOrder.indexOf('wolves'), '觉醒隐狼必须先于狼刀检查刀状态')
   assert.ok(hiddenOrder.indexOf('hiddenWolfAbility') > hiddenOrder.indexOf('mirrorGirl'), '觉醒隐狼复制技能应在魔镜少女之后')
   const kingOrder = getBoard('awakenedWolfKing12').nightSequence
   assert.equal(kingOrder.indexOf('awakenedWolfKing'), kingOrder.indexOf('wolves') + 1, '觉醒狼王必须紧跟狼刀行动')
-  ;[['wolfBeautyKnight12', 'wolfBeauty'], ['gargoyleGravedigger12', 'gargoyle'], ['pureWhiteNight12', 'wolfWitch'], ['fogCrow12', 'wolfCrowClaw']].forEach(([boardId, actionId]) => {
+  ;[['wolfBeautyKnight12', 'wolfBeauty'], ['wolfBeautyKnight10', 'wolfBeauty'], ['gargoyleGravedigger12', 'gargoyle'], ['pureWhiteNight12', 'wolfWitch'], ['fogCrow12', 'wolfCrowClaw']].forEach(([boardId, actionId]) => {
     const order = getBoard(boardId).nightSequence
     assert.ok(order.indexOf(actionId) > order.indexOf('wolves'), `${actionId}应在狼刀后行动`)
   })
@@ -533,6 +534,68 @@ for (const target of [1, 5, null]) {
   const wolf = selfExposeGame.seats.find(seat => seat.roleId === 'wolf')
   engine.applyDayEvent(selfExposeGame, 'selfExpose', wolf.number)
   assert.equal(wolf.alive, false, '9人暗牌场普通狼人应可正常自曝')
+}
+
+{
+  const board = getBoard('wolfBeautyKnight10')
+  assert.equal(board.playerCount, 10, '10人狼美人骑士应创建10个座位')
+  assert.deepEqual(board.roleCounts, { wolf: 2, wolfBeauty: 1, villager: 3, seer: 1, witch: 1, fool: 1, knight: 1 }, '10人狼美人骑士身份配置应与规则一致')
+  assert.deepEqual(board.nightSequence, ['wolves', 'wolfBeauty', 'witch', 'seer'], '10人狼美人骑士夜间顺序应为狼刀、狼美人、女巫、预言家')
+  assert.equal(board.dayRules.exposure, 'single', '10人狼美人骑士应采用单曝吞警徽')
+  assert.deepEqual(board.dayRules.selfExposeRoleIds, ['wolf'], '10人狼美人骑士仅普通狼人可以自曝')
+
+  const game = engine.makeGame(board, boardRoles(board.id))
+  const witch = game.seats.find(seat => seat.roleId === 'witch')
+  engine.setNightActionTarget(game, 'wolves', witch.number)
+  engine.setWitchAction(game, 'save')
+  engine.settleNight(game)
+  assert.equal(witch.alive, true, '10人狼美人骑士女巫首夜应可以自救')
+
+  const duelGame = engine.makeGame(board, boardRoles(board.id))
+  const wolfBeauty = duelGame.seats.find(seat => seat.roleId === 'wolfBeauty')
+  const charmed = duelGame.seats.find(seat => seat.roleId === 'seer')
+  duelGame.special.wolfBeautyTarget = charmed.number
+  engine.settleNight(duelGame)
+  duelGame.dayState.stage = 'discussion'
+  engine.resolveKnightDuel(duelGame, wolfBeauty.number)
+  assert.equal(wolfBeauty.alive, false, '骑士决斗狼人阵营目标应使其出局')
+  assert.equal(charmed.alive, true, '狼美人因骑士决斗出局时不应带走魅惑目标')
+}
+
+{
+  const board = getBoard('mirrorMystery10')
+  assert.equal(board.playerCount, 10, '10人镜隐迷踪应创建10个座位')
+  assert.deepEqual(board.roleCounts, { wolf: 2, awakenedHiddenWolf: 1, villager: 4, guard: 1, witch: 1, mirrorGirl: 1 }, '10人镜隐迷踪身份配置应与规则一致')
+  assert.deepEqual(board.firstNightSequence, ['mirrorGirlSignal', 'guard', 'wolves', 'witch', 'awakenedHiddenWolf', 'mirrorGirl'], '10人镜隐迷踪首夜不应出现猎人环节')
+  assert.equal(board.dayRules.exposure, 'single', '10人镜隐迷踪应采用单曝吞警徽')
+  assert.deepEqual(board.dayRules.selfExposeRoleIds, ['wolf'], '10人镜隐迷踪仅普通狼人可以自曝')
+
+  const game = engine.makeGame(board, boardRoles(board.id))
+  assert.deepEqual(engine.getNightActionCards(game, board).map(card => card.id), board.firstNightSequence, '10人镜隐迷踪首夜主持顺序应与文档一致')
+  game.day = 2
+  game.night.actions = {}
+  Object.assign(game.special.awakenedHiddenWolf, { mimickedRoleId: 'witch', mimicDay: 1 })
+  assert.deepEqual(engine.getNightActionCards(game, board).map(card => card.id), ['guard', 'hiddenWolfStatus', 'wolves', 'witch', 'mirrorGirl', 'hiddenWolfAbility'], '10人镜隐迷踪后续夜晚不应生成猎人环节')
+}
+
+{
+  const board = getBoard('miracleMerchant10')
+  assert.equal(board.playerCount, 10, '10人奇迹商人应创建10个座位')
+  assert.deepEqual(board.roleCounts, { wolf: 2, wolfKing: 1, villager: 4, seer: 1, witch: 1, miracleMerchant: 1 }, '10人奇迹商人身份配置应与规则一致')
+  assert.deepEqual(board.nightSequence, ['miracleMerchant', 'luckySkill', 'wolves', 'witch', 'seer'], '10人奇迹商人应先处理交易与幸运儿行动')
+  assert.equal(board.dayRules.exposure, 'single', '10人奇迹商人应采用单曝吞警徽')
+  assert.deepEqual(board.dayRules.selfExposeRoleIds, ['wolf', 'wolfKing'], '10人奇迹商人的普通狼人和狼王可以自曝')
+  assert.equal(board.witchSelfSave, 'firstNight', '10人奇迹商人女巫仅首夜可以自救')
+
+  const game = engine.makeGame(board, boardRoles(board.id))
+  const merchant = game.seats.find(seat => seat.roleId === 'miracleMerchant')
+  const wolf = game.seats.find(seat => seat.roleId === 'wolf')
+  engine.setNightActionChoice(game, 'miracleMerchant', 'inspect')
+  engine.setNightActionTarget(game, 'miracleMerchant', wolf.number)
+  engine.setWitchAction(game, 'none')
+  engine.settleNight(game)
+  assert.equal(merchant.alive, false, '10人奇迹商人交易给狼人后应于次日出局')
+  assert.equal(merchant.deathCause, '交易失败', '10人奇迹商人交易失败应使用独立出局原因')
 }
 
 console.log('game-engine tests passed')

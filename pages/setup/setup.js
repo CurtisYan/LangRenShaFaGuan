@@ -1,4 +1,5 @@
 const { getBoard } = require('../../data/boards')
+const { buildCustomBoard } = require('../../data/custom-board')
 const { roles } = require('../../data/roles')
 const { makeGame, makeFirstNightIdentityGame } = require('../../utils/game-engine')
 
@@ -6,15 +7,26 @@ Page({
   data: { board: null, seats: [], mode: 'role', selectedRoleId: '', selectedSeatNumber: 1, roleGroups: [], numberCards: [], summaryItems: [], assignedCount: 0, error: '' },
 
   onLoad(query) {
-    const board = getBoard(query.boardId || 'standard12')
+    let board = getBoard(query.boardId || 'standard12')
+    if (query.boardId === 'custom') {
+      const config = wx.getStorageSync('customBoardConfig')
+      try { board = buildCustomBoard(config.roleCounts, config.settings) } catch (error) { return wx.redirectTo({ url: '/pages/custom-board/custom-board' }) }
+    }
+    if (!board) return wx.redirectTo({ url: '/pages/index/index' })
     const saved = wx.getStorageSync(`setupDraft_${board.id}`)
-    const savedRoles = saved && Array.isArray(saved.seatRoles) && saved.seatRoles.length === board.playerCount ? saved.seatRoles : null
+    const savedRoles = saved && Array.isArray(saved.seatRoles) && saved.seatRoles.length === board.playerCount && (board.id !== 'custom' || saved.configKey === JSON.stringify(board.roleCounts)) ? saved.seatRoles : null
     const seats = Array.from({ length: board.playerCount }, (_, index) => {
       const roleId = savedRoles ? savedRoles[index] : ''
       return { number: index + 1, roleId, roleName: roleId ? roles[roleId].name : '未分配' }
     })
     this.setData({ board, seats, mode: saved && saved.mode === 'seat' ? 'seat' : 'role', selectedRoleId: Object.keys(board.roleCounts)[0] })
     this.rebuildView()
+  },
+
+  editCustomBoard() {
+    if (!this.data.board || this.data.board.id !== 'custom') return
+    this.saveDraft()
+    wx.navigateBack({ delta: 1, fail: () => wx.redirectTo({ url: '/pages/custom-board/custom-board' }) })
   },
 
   setMode(event) {
@@ -92,7 +104,7 @@ Page({
 
   saveDraft() {
     const { board, mode, seats } = this.data
-    if (board) wx.setStorageSync(`setupDraft_${board.id}`, { mode, seatRoles: seats.map(item => item.roleId) })
+    if (board) wx.setStorageSync(`setupDraft_${board.id}`, { mode, seatRoles: seats.map(item => item.roleId), configKey: JSON.stringify(board.roleCounts) })
   },
 
   startFirstNightIdentityGame() {

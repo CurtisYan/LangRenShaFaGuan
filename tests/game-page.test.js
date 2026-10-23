@@ -309,3 +309,34 @@ page.openBoardDetail.call(page)
 assert.equal(navigations[0], '/pages/board-detail/board-detail?boardId=standard12', '顶部板子名应跳转至对应板子说明')
 
 console.log('game-page flow tests passed')
+
+const { buildCustomBoard } = require('../data/custom-board')
+const customCounts = { wolf: 2, villager: 8, seer: 1, witch: 1 }
+global.wx.showActionSheet = ({ success }) => success({ tapIndex: 0 })
+for (const exposure of ['single', 'double']) {
+  const customBoard = buildCustomBoard(customCounts, { sheriff: true, exposure })
+  const customGame = engine.makeGame(customBoard, Object.entries(customCounts).flatMap(([id, count]) => Array(count).fill(id)))
+  customGame.phase = 'day'
+  customGame.dayState = engine.createDayState(customGame)
+  customGame.dayState.stage = 'sheriffSpeech'
+  customGame.dayState.sheriffCandidates = [1, 3]
+  app.globalData.game = customGame
+  page.refresh()
+  page.triggerSelfExpose()
+  assert.equal(customGame.sheriffElectionDone, exposure === 'single')
+  assert.equal(customGame.sheriffElectionInterrupted, exposure === 'double')
+  assert.equal(customGame.dayState.endAfterDeathSkills, true)
+  assert.equal(customGame.dayState.stage, 'announceNight')
+}
+const manualBoard = buildCustomBoard(customCounts, { winMode: 'manual' })
+const manualGame = engine.makeGame(manualBoard, Object.entries(customCounts).flatMap(([id, count]) => Array(count).fill(id)))
+app.globalData.game = manualGame
+page.refresh()
+global.wx.showModal = ({ success }) => success({ confirm: false })
+page.recordManualWinner()
+assert.equal(manualGame.status, 'playing', '取消人工裁决应继续对局')
+global.wx.showModal = ({ success }) => success({ confirm: true })
+page.recordManualWinner()
+assert.equal(manualGame.status, 'ended')
+assert.equal(manualGame.winner, '好人阵营')
+assert.equal(manualGame.logs.some(log => log.text.includes('场上裁决')), true)

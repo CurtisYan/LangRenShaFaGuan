@@ -1,4 +1,4 @@
-const { getBoard } = require('../../data/boards')
+const { getBoard, getGameBoard } = require('../../data/boards')
 const { roles } = require('../../data/roles')
 const { roleDocuments } = require('../../data/role-documents')
 const { boardDocuments } = require('../../data/board-documents')
@@ -16,10 +16,10 @@ function parseBoardDocument(document) {
 Page({
   data: { board: null, roleCards: [], nightSequenceLabels: [], detailSections: [] },
   onLoad(query) {
-    const board = getBoard(query.boardId)
+    const board = query.boardId === 'custom' ? (query.fromGame ? getGameBoard(getApp().globalData.game) : wx.getStorageSync('customBoardConfig')) : getBoard(query.boardId)
     if (!board) return wx.navigateBack()
     const roleCards = Object.keys(board.roleCounts).map(id => ({ id, name: roles[id].name, count: board.roleCounts[id], tone: toneFor(roles[id]), hasDocument: Boolean(roleDocuments[id]) }))
-    this.setData({ board, roleCards, nightSequenceLabels: board.nightSequence.map(id => nightActionDefinitions[id] ? nightActionDefinitions[id].name : id), detailSections: parseBoardDocument(boardDocuments[board.id]) })
+    this.setData({ board, roleCards, nightSequenceLabels: board.nightSequence.map(id => nightActionDefinitions[id] ? nightActionDefinitions[id].name : id), detailSections: board.id === 'custom' ? [{ title: '本局房间设置', paragraphs: board.rules }, ...parseBoardDocument(boardDocuments.custom)] : parseBoardDocument(boardDocuments[board.id]) })
     wx.setNavigationBarTitle({ title: board.name })
   },
   openRole(event) { wx.navigateTo({ url: `/pages/role-detail/role-detail?roleId=${event.currentTarget.dataset.id}` }) }

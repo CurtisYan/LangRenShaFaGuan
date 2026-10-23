@@ -31,6 +31,25 @@ const boards = [
     firstNightSequence: ['mirrorGirlSignal', 'guard', 'wolves', 'witch', 'hunterStatus', 'awakenedHiddenWolf', 'mirrorGirl']
   },
   {
+    ...common('wolfBeautyKnight10', '10人狼美人骑士', '2狼 + 狼美人 + 3民 + 预女愚骑士', { wolf: 2, wolfBeauty: 1, villager: 3, seer: 1, witch: 1, fool: 1, knight: 1 }, ['wolves', 'wolfBeauty', 'witch', 'seer'], ['狼美人出局带走魅惑目标', '骑士在放逐发言阶段决斗'], 'single'),
+    playerCount: 10,
+    witchSelfSave: 'firstNight',
+    rules: ['暗牌，有警长', '单曝吞警徽', '女巫仅首夜可以自救', '狼美人因骑士决斗出局时无法发动魅惑技能']
+  },
+  {
+    ...common('mirrorMystery10', '10人镜隐迷踪', '2狼 + 觉醒隐狼 + 4民 + 守女魔镜少女', { wolf: 2, awakenedHiddenWolf: 1, villager: 4, guard: 1, witch: 1, mirrorGirl: 1 }, ['guard', 'hiddenWolfStatus', 'wolves', 'witch', 'mirrorGirl', 'awakenedHiddenWolf', 'hiddenWolfAbility'], ['觉醒隐狼每局一次模仿身份并在次日起获得对应技能'], 'single'),
+    playerCount: 10,
+    witchSelfSave: 'firstNight',
+    firstNightSequence: ['mirrorGirlSignal', 'guard', 'wolves', 'witch', 'awakenedHiddenWolf', 'mirrorGirl'],
+    rules: ['暗牌，有警长', '单曝吞警徽', '女巫仅首夜可以自救', '觉醒隐狼不入狼队；魔镜少女查验具体身份']
+  },
+  {
+    ...common('miracleMerchant10', '10人奇迹商人', '2狼 + 狼王 + 4民 + 预女奇迹商人', { wolf: 2, wolfKing: 1, villager: 4, seer: 1, witch: 1, miracleMerchant: 1 }, ['miracleMerchant', 'luckySkill', 'wolves', 'witch', 'seer'], ['奇迹商人每局一次赋予技能；交易给狼人则次日出局'], 'single'),
+    playerCount: 10,
+    witchSelfSave: 'firstNight',
+    rules: ['暗牌，有警长', '单曝吞警徽', '女巫仅首夜可以自救', '奇迹商人为好人神职', '交易给狼人则次日出局']
+  },
+  {
     id: 'hidden9',
     name: '9人暗牌场',
     summary: '3狼 + 3民 + 预女猎',
@@ -43,4 +62,7 @@ const boards = [
   }
 ]
 
-module.exports = { boards, getBoard: id => boards.find(board => board.id === id) || null }
+const getBoard = id => boards.find(board => board.id === id) || null
+const getGameBoard = game => game.boardId === 'custom' ? game.boardConfig : getBoard(game.boardId)
+
+module.exports = { boards, getBoard, getGameBoard }

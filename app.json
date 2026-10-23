@@ -7,7 +7,8 @@
     "pages/board-list/board-list",
     "pages/board-detail/board-detail",
     "pages/role-list/role-list",
-    "pages/role-detail/role-detail"
+    "pages/role-detail/role-detail",
+    "pages/custom-board/custom-board"
   ],
   "window": {
     "navigationBarTitleText": "面杀法官助手",

@@ -1,6 +1,6 @@
 const { roles } = require('../data/roles')
 const { nightActionDefinitions } = require('../data/night-actions')
-const { getBoard } = require('../data/boards')
+const { getGameBoard } = require('../data/boards')
 const MAX_STEP_HISTORY = 60
 const ISOLATED_WOLVES = new Set(['gargoyle', 'wolfCrowClaw', 'eclipseMaid', 'awakenedHiddenWolf'])
 
@@ -42,6 +42,7 @@ function defaultSpecialState() {
     knightUsed: false,
     bloodApostleDelayed: false,
     lastExiledSeat: null,
+    evilKnightBacklashUsed: false,
     goodSkillsSealedTonight: false
   }
 }
@@ -52,13 +53,16 @@ function ensureGameState(game) {
   if (game.resources.poison === undefined) game.resources.poison = true
   if (game.resources.lastGuardTarget === undefined) game.resources.lastGuardTarget = null
   if (game.resources.wolfKingClawUsed === undefined) game.resources.wolfKingClawUsed = false
-  game.special = { ...defaultSpecialState(), ...(game.special || {}) }
-  game.special.timeWolfConsort = { lastTarget: null, disabled: false, ...(game.special.timeWolfConsort || {}) }
-  game.special.orderPrince = { used: false, revealed: false, ...(game.special.orderPrince || {}) }
-  game.special.wolfCrowClaw = { joined: false, clawAvailable: false, used: false, ...(game.special.wolfCrowClaw || {}) }
-  game.special.alchemistWitch = { fogAvailable: true, snakeAvailable: true, pendingWolfTarget: null, ...(game.special.alchemistWitch || {}) }
-  game.special.eclipseMaid = { copiedRoleId: null, copiedTargetNumber: null, ...(game.special.eclipseMaid || {}) }
-  game.special.awakenedHiddenWolf = { mimickedRoleId: null, mimicDay: null, joined: false, extraClawAvailable: false, extraClawUsed: false, poisonAvailable: true, inspectedTargets: [], ...(game.special.awakenedHiddenWolf || {}) }
+  // 查询行动时也会进入此函数；保留对象引用，避免 RHS 查询后把结果写进过期状态对象。
+  const specialDefaults = defaultSpecialState()
+  game.special = game.special || {}
+  Object.keys(specialDefaults).forEach(key => {
+    const fallback = specialDefaults[key]
+    if (game.special[key] === undefined || (fallback && typeof fallback === 'object' && !Array.isArray(fallback) && !game.special[key])) game.special[key] = fallback
+    else if (fallback && typeof fallback === 'object' && !Array.isArray(fallback)) {
+      Object.keys(fallback).forEach(field => { if (game.special[key][field] === undefined) game.special[key][field] = fallback[field] })
+    }
+  })
   if (!Array.isArray(game.special.mirrorGirlInspected)) game.special.mirrorGirlInspected = []
   if (!Array.isArray(game.special.magicianSwappedSeats)) game.special.magicianSwappedSeats = []
   if (!Array.isArray(game.special.gargoyleInspected)) game.special.gargoyleInspected = []
@@ -109,6 +113,13 @@ function identityRoleOrder(board) {
 function makeGame(board, seatRoles, options = {}) {
   const identityAssignmentTiming = options.identityAssignmentTiming === 'firstNight' ? 'firstNight' : 'beforeGame'
   const identitiesKnown = identityAssignmentTiming === 'beforeGame'
+  if (board.id === 'custom') {
+    if (seatRoles.length !== board.playerCount) throw new Error('座位人数与自定义板子人数不一致')
+    if (identitiesKnown) {
+      const actual = seatRoles.reduce((counts, id) => { counts[id] = (counts[id] || 0) + 1; return counts }, {})
+      if (Object.keys({ ...board.roleCounts, ...actual }).some(id => (actual[id] || 0) !== (board.roleCounts[id] || 0))) throw new Error('座位身份与自定义板子的角色数量不一致')
+    }
+  }
   const now = Date.now()
   const seats = seatRoles.map((roleId, index) => {
     const role = roles[roleId]
@@ -129,6 +140,7 @@ function makeGame(board, seatRoles, options = {}) {
     id: String(now),
     boardId: board.id,
     boardName: board.name,
+    ...(board.id === 'custom' ? { boardConfig: JSON.parse(JSON.stringify(board)) } : {}),
     identityAssignmentTiming,
     identityAssignment: identitiesKnown ? null : { complete: false, roleCounts: { ...board.roleCounts }, actionIndex: 0, selectedSeatNumbers: [] },
     status: 'playing',
@@ -183,6 +195,7 @@ function actionIdentityRoleIds(game, board, actionId) {
   let roleIds = []
   if (actionId === 'wolves') {
     roleIds = boardRoleIds.filter(roleId => roles[roleId] && roles[roleId].camp === 'wolf' && !ISOLATED_WOLVES.has(roleId))
+    if (!roleIds.length) roleIds = boardRoleIds.filter(roleId => roles[roleId] && roles[roleId].camp === 'wolf')
   } else if (definition && definition.roleId && board.roleCounts[definition.roleId]) {
     roleIds = [definition.roleId]
   }
@@ -262,6 +275,10 @@ function setNightActionTarget(game, actionId, targetNumber) {
   ensureGameState(game)
   const target = targetNumber === null || targetNumber === undefined || targetNumber === '' ? null : Number(targetNumber)
   if (target !== null && !game.seats.some(seat => seat.alive && seat.number === target)) throw new Error('请选择存活玩家')
+  if (actionId === 'awakenedHiddenWolf' && target !== null) {
+    const selected = game.seats.find(seat => seat.number === target)
+    if (!Object.prototype.hasOwnProperty.call(nightActionDefinitions.awakenedHiddenWolf.copiedSkills, selected.roleId)) throw new Error('觉醒隐狼不能模仿该身份，请选择文档明确的身份')
+  }
   const value = actionValue(game, actionId)
   game.night.actions[actionId] = { ...value, target }
   if (actionId === 'wolves') game.night.wolfTarget = target
@@ -279,7 +296,7 @@ function setNightActionChoice(game, actionId, choice) {
 }
 
 function canWitchSelfSave(game) {
-  const board = getBoard(game.boardId)
+  const board = getGameBoard(game)
   return Boolean(board && board.witchSelfSave === 'firstNight' && game.day === 1)
 }
 
@@ -289,7 +306,7 @@ function setWitchAction(game, action, targetNumber) {
   const wolfTarget = game.night.wolfTarget || (game.night.actions.wolves && game.night.actions.wolves.target)
   const witch = seatForRole(game, 'witch')
   if (normalized === 'save' && witch && wolfTarget === witch.number && !canWitchSelfSave(game)) {
-    const board = getBoard(game.boardId)
+    const board = getGameBoard(game)
     throw new Error(board && board.witchSelfSave === 'firstNight' ? '本板女巫仅首夜可以自救' : '本板女巫全程不能自救')
   }
   game.night.witchAction = normalized
@@ -394,7 +411,8 @@ function activeWolfTeam(game) {
 function dynamicSkillForAction(game, actionId) {
   if (actionId === 'luckySkill') {
     if (game.special.luckySkill && !game.special.luckySkill.used) return game.special.luckySkill
-    const merchant = actionValue(game, 'miracleMerchant')
+    const copied = dynamicSkillForAction(game, 'eclipseMaidAbility')
+    const merchant = copied && copied.skill === 'miracleMerchant' ? actionValue(game, 'eclipseMaidAbility') : actionValue(game, 'miracleMerchant')
     const target = game.seats.find(seat => seat.number === Number(merchant.target))
     if (target && roles[target.roleId] && roles[target.roleId].camp !== 'wolf' && merchant.choice) return { seatNumber: target.number, skill: merchant.choice, used: false, pending: true }
   }
@@ -413,8 +431,8 @@ function dynamicSkillForAction(game, actionId) {
 function dynamicKind(skill) {
   if (!skill) return 'information'
   if (['witch'].includes(skill)) return 'witch'
-  if (skill === 'villager') return 'information'
-  return 'target'
+  if (['villager', 'hunter', 'fool', 'knight', 'orderPrince', 'lonelyGirl', 'cursedFox'].includes(skill)) return 'information'
+  return nightActionDefinitions[skill] ? nightActionDefinitions[skill].kind : 'target'
 }
 
 function getNightActionCards(game, board) {
@@ -433,23 +451,28 @@ function getNightActionCards(game, board) {
     if (game.special.awakenedHiddenWolf.mimickedRoleId === 'wolf') game.special.awakenedHiddenWolf.extraClawAvailable = true
   }
   return getNightSequence(game, board).map((actionId, index) => {
-    const definition = nightActionDefinitions[actionId] || { id: actionId, roleId: actionId, name: actionId, kind: 'target', optional: true }
+    let definition = nightActionDefinitions[actionId] || { id: actionId, roleId: actionId, name: actionId, kind: 'target', optional: true }
     let actor = definition.roleId ? seatForRole(game, definition.roleId) : null
     if (actionId === 'wolves') actor = activeWolfTeam(game)[0] || null
     const dynamic = dynamicSkillForAction(game, actionId)
+    if (dynamic && actionId === 'eclipseMaidAbility' && nightActionDefinitions[dynamic.skill]) {
+      const inherited = nightActionDefinitions[dynamic.skill]
+      definition = { ...definition, ...inherited, id: actionId, roleId: definition.roleId, optional: true, required: false }
+    }
     if (dynamic && dynamic.seatNumber) actor = game.seats.find(seat => seat.number === dynamic.seatNumber) || actor
     let enabled = Boolean(actionId === 'wolves' ? activeWolfTeam(game).length : actor && actor.alive)
     let inactiveReason = enabled ? '' : '该身份已出局或当前没有可行动玩家。'
     if (definition.firstNightOnly && game.day !== 1) { enabled = false; inactiveReason = '该技能仅在第一夜行动。' }
     if (definition.fromDay && game.day < definition.fromDay) { enabled = false; inactiveReason = `第${definition.fromDay}夜开始行动。` }
-    if (actionId === 'miracleMerchant' && game.special.miracleMerchantUsed) { enabled = false; inactiveReason = '本局交易技能已经使用。' }
-    if (actionId === 'magician' && game.special.magicianUsed) { enabled = false; inactiveReason = '本局交换技能已经使用。' }
+    if ((actionId === 'miracleMerchant' || (actionId === 'eclipseMaidAbility' && dynamic && dynamic.skill === 'miracleMerchant')) && game.special.miracleMerchantUsed) { enabled = false; inactiveReason = '本局交易技能已经使用。' }
+    if ((actionId === 'magician' || (actionId === 'eclipseMaidAbility' && dynamic && dynamic.skill === 'magician')) && game.special.magicianUsed) { enabled = false; inactiveReason = '本局交换技能已经使用。' }
     if (actionId === 'timeWolfConsort' && game.special.timeWolfConsort.disabled) { enabled = false; inactiveReason = '封锁已成功反弹技能，蚀时狼妃永久失去技能。' }
-    if (actionId === 'alchemistWitch' && !game.special.alchemistWitch.fogAvailable) { enabled = false; inactiveReason = '末明之雾已经使用。' }
+    if ((actionId === 'alchemistWitch' || (actionId === 'eclipseMaidAbility' && dynamic && dynamic.skill === 'alchemistWitch')) && !game.special.alchemistWitch.fogAvailable) { enabled = false; inactiveReason = '末明之雾已经使用。' }
     if (actionId === 'awakenedWolfKing' && (!actor || !actor.abilities || actor.abilities.clawCharges <= 0)) { enabled = false; inactiveReason = '没有可亲传的狼王爪。' }
     if (actionId === 'wolfCrowClaw' && (!game.special.wolfCrowClaw.joined || !game.special.wolfCrowClaw.clawAvailable)) { enabled = false; inactiveReason = '狼鸦之爪尚未觉醒，或觉醒爪击已经使用。' }
     if (actionId === 'awakenedHiddenWolf' && game.special.awakenedHiddenWolf.mimickedRoleId) { enabled = false; inactiveReason = '本局已经完成模仿。' }
     if (['luckySkill', 'eclipseMaidAbility', 'hiddenWolfAbility'].includes(actionId) && !dynamic) { enabled = false; inactiveReason = '当前没有可使用的继承技能。' }
+    if (actor && rawNightTarget(game, 'nightmare') === actor.number && actionId !== 'nightmare') { enabled = false; inactiveReason = '本夜被噩梦之影恐惧，不能发动技能。' }
     if (actor && roles[actor.roleId] && roles[actor.roleId].camp === 'good' && game.special.goodSkillsSealedTonight) { enabled = false; inactiveReason = '血夜使徒自曝，本夜好人技能全部封印。' }
     if (actor && actionId !== 'eclipseMaidAbility' && rawNightTarget(game, 'eclipseMaid') === actor.number) { enabled = false; inactiveReason = '本夜被蚀日侍女吞噬，技能暂时失效。' }
     if (actionId === 'wolves' && rawNightTarget(game, 'nightmare') && activeWolfTeam(game).some(seat => seat.number === rawNightTarget(game, 'nightmare'))) { enabled = false; inactiveReason = '狼队成员被恐惧，本夜不能发动普通狼刀。' }
@@ -461,17 +484,19 @@ function getNightActionCards(game, board) {
       const skillRole = roles[dynamic.skill]
       const skillNames = { inspect: '查验', poison: '毒药', guard: '守护' }
       const skillName = skillNames[dynamic.skill] || (skillRole && skillRole.name) || dynamic.skill
-      name = `${definition.name} · ${skillName}`
+      name = `${nightActionDefinitions[actionId].name} · ${skillName}`
+      if (actionId === 'eclipseMaidAbility' && ['hunter', 'fool', 'knight', 'orderPrince', 'lonelyGirl', 'cursedFox'].includes(dynamic.skill)) prompt = '此身份没有本夜主动目标操作；出局技能仍按公布与归还时点处理。'
       if (dynamic.skill === 'villager') { enabled = false; inactiveReason = '模仿或吞噬到平民，本夜没有可发动的技能。' }
     }
     let candidates = alive.slice()
     if (definition.excludeSelf && actor) candidates = candidates.filter(seat => seat.number !== actor.number)
     if (definition.wolfTargetOnly) candidates = candidates.filter(seat => roles[seat.roleId] && roles[seat.roleId].camp === 'wolf' && seat.number !== actor.number && !seat.abilities.receivedAwakenedClaw)
     if (definition.nonWolfTargetOnly) candidates = candidates.filter(seat => roles[seat.roleId] && roles[seat.roleId].camp !== 'wolf')
-    if (actionId === 'eclipseMaid') candidates = candidates.filter(seat => roles[seat.roleId] && roles[seat.roleId].camp !== 'wolf')
+    if (actionId === 'awakenedHiddenWolf') candidates = candidates.filter(seat => Object.prototype.hasOwnProperty.call(definition.copiedSkills || {}, seat.roleId))
+    if (actionId === 'eclipseMaid') candidates = candidates.filter(seat => roles[seat.roleId] && roles[seat.roleId].camp !== 'wolf' && seat.roleId !== 'hunter')
     if (actionId === 'wolves') {
       candidates = candidates.filter(seat => seat.roleId !== 'evilKnight')
-      const fogTargets = actionValue(game, 'alchemistWitch').targets || []
+      const fogTargets = (dynamicSkillForAction(game, 'eclipseMaidAbility') || {}).skill === 'alchemistWitch' ? (actionValue(game, 'eclipseMaidAbility').targets || []) : (actionValue(game, 'alchemistWitch').targets || [])
       if (fogTargets.length === 3) candidates = candidates.filter(seat => fogTargets.includes(seat.number))
     }
     if (actionId === 'luckySkill' && dynamic && dynamic.skill === 'guard' && game.resources.lastGuardTarget) candidates = candidates.filter(seat => seat.number !== game.resources.lastGuardTarget)
@@ -481,13 +506,16 @@ function getNightActionCards(game, board) {
     if (actionId === 'hiddenWolfAbility' && dynamic && dynamic.skill === 'witch') {
       if (!game.special.awakenedHiddenWolf.poisonAvailable) { enabled = false; inactiveReason = '复制获得的一瓶毒药已经使用。' }
     }
-    const noRepeat = actionId === 'mirrorGirl' ? game.special.mirrorGirlInspected : actionId === 'gargoyle' ? game.special.gargoyleInspected : []
+    if (actionId === 'nightmare' && game.day > 1) candidates = candidates.filter(seat => roles[seat.roleId] && roles[seat.roleId].camp !== 'wolf')
+    const noRepeat = actionId === 'mirrorGirl' || (actionId === 'eclipseMaidAbility' && dynamic && dynamic.skill === 'mirrorGirl') ? game.special.mirrorGirlInspected : actionId === 'gargoyle' ? game.special.gargoyleInspected : []
     if (definition.noRepeat) candidates = candidates.filter(seat => !noRepeat.includes(seat.number))
-    if (actionId === 'guard' && game.resources.lastGuardTarget) candidates = candidates.filter(seat => seat.number !== game.resources.lastGuardTarget)
+    if ((actionId === 'guard' || (actionId === 'eclipseMaidAbility' && dynamic && dynamic.skill === 'guard')) && game.resources.lastGuardTarget) candidates = candidates.filter(seat => seat.number !== game.resources.lastGuardTarget)
     if (actionId === 'timeWolfConsort' && game.special.timeWolfConsort.lastTarget) candidates = candidates.filter(seat => seat.number !== game.special.timeWolfConsort.lastTarget)
     if (actionId === 'radiantCount' && game.special.radiantCountLastTarget) candidates = candidates.filter(seat => seat.number !== game.special.radiantCountLastTarget)
     if (actionId === 'nightmare' && game.special.nightmareLastTarget) candidates = candidates.filter(seat => seat.number !== game.special.nightmareLastTarget)
-    if (actionId === 'crow' && game.special.crowTarget) candidates = candidates.filter(seat => seat.number !== game.special.crowTarget)
+    if ((actionId === 'crow' || (actionId === 'eclipseMaidAbility' && dynamic && dynamic.skill === 'crow')) && game.special.crowTarget) candidates = candidates.filter(seat => seat.number !== game.special.crowTarget)
+    if (enabled && kind === 'target' && candidates.length === 0) { enabled = false; inactiveReason = '当前没有符合规则的可选目标，本环节无需操作。' }
+    if (enabled && kind === 'multiTarget' && candidates.length < definition.targetCount) { enabled = false; inactiveReason = '当前可选人数不足，本环节无法发动。' }
     const value = actionValue(game, actionId)
     if (kind === 'witch' && !value.choice) {
       value.choice = actionId === 'witch' ? game.night.witchAction : 'none'
@@ -507,16 +535,17 @@ function getNightActionCards(game, board) {
       const poisoned = actionValue(game, 'witch').choice === 'poison' && Number(actionValue(game, 'witch').target) === (actor && actor.number)
       const copiedPoison = actionValue(game, 'hiddenWolfAbility')
       const hiddenPoisoned = game.special.awakenedHiddenWolf.mimickedRoleId === 'witch' && game.special.awakenedHiddenWolf.poisonAvailable && copiedPoison.choice === 'poison' && Number(copiedPoison.target) === (actor && actor.number)
-      result = poisoned || hiddenPoisoned ? '当前不能发动猎人技能。' : '当前可以发动猎人技能；实际出局时按最终结算确认。'
+      const feared = rawNightTarget(game, 'nightmare') === (actor && actor.number)
+      result = poisoned || hiddenPoisoned || feared ? '当前不能发动猎人技能。' : '当前可以发动猎人技能；实际出局时按最终结算确认。'
     }
-    if (actionId === 'gravedigger') {
+    if (actionId === 'gravedigger' || (actionId === 'eclipseMaidAbility' && dynamic && dynamic.skill === 'gravedigger')) {
       const exiled = game.special.lastExiledSeat && game.seats.find(seat => seat.number === game.special.lastExiledSeat)
       result = exiled ? `${exiled.number}号属于${roles[exiled.roleId].camp === 'wolf' ? '狼人阵营' : '好人阵营'}` : '上一天没有玩家被放逐。'
     }
-    if (dynamic && ['inspect', 'seer', 'mirrorGirl'].includes(dynamic.skill) && value.target) result = inspectionResult(game, dynamic.skill === 'inspect' ? 'seer' : dynamic.skill, value.target)
+    if (dynamic && ['inspect', 'seer', 'mirrorGirl', 'pureWhiteGirl'].includes(dynamic.skill) && value.target) result = inspectionResult(game, dynamic.skill === 'inspect' ? 'seer' : dynamic.skill, value.target)
     return {
       id: actionId, order: String(index + 2).padStart(2, '0'), name, prompt, kind, enabled, inactiveReason,
-      hostLine: definition.closedEyeSignal ? '魔镜少女请保持闭眼，举手示意。' : '', closedEyeSignal: Boolean(definition.closedEyeSignal),
+      hostLine: definition.closedEyeSignal ? '魔镜少女请保持闭眼，举手示意。' : `${actionId === 'wolves' ? '狼人' : actionId === 'luckySkill' ? '幸运儿' : roles[nightActionDefinitions[actionId].roleId].name}请睁眼。`, closedEyeSignal: Boolean(definition.closedEyeSignal),
       actorNumber: actor ? actor.number : '', targetNumbers: candidates.map(seat => seat.number), targetLabels: candidates.map(seat => `${seat.number}号`), targetIndex: selectedIndex,
       selectedTarget: value.target || null, targets: value.targets || [], targetSeats: candidates.map(seat => ({ number: seat.number, selected: (value.targets || []).includes(seat.number) })),
       targetCount: definition.targetCount || 1, choice: value.choice || '', choiceLabel: value.choice ? ((definition.choiceLabels || definition.choices || [])[(definition.choices || []).indexOf(value.choice)] || value.choice) : '', choiceOptions: definition.choiceLabels || definition.choices || [], choiceValues: definition.choices || [], choiceIndex: Math.max(0, (definition.choices || []).indexOf(value.choice)),
@@ -537,7 +566,10 @@ function getGuidedFirstNightAction(game, board) {
 }
 
 function requiredNightActionIncomplete(card) {
-  if (!card || !card.enabled || card.optional) return false
+  if (!card || !card.enabled) return false
+  if (card.kind === 'witch') return card.choice === 'poison' && !card.selectedTarget
+  if (card.kind === 'skillTarget' && Boolean(card.choice) !== Boolean(card.selectedTarget)) return true
+  if (card.optional) return false
   if (card.kind === 'target') return !card.selectedTarget
   if (card.kind === 'multiTarget') return card.targets.length !== card.targetCount
   if (card.kind === 'skillTarget') return !card.choice || !card.selectedTarget
@@ -637,10 +669,10 @@ function kill(game, number, cause) {
   seat.deathCauseId = normalizedCauseId
   queueSheriffTransfer(game, seat, label)
   if (!Array.isArray(game.pendingDeathSkills)) game.pendingDeathSkills = []
-  game.pendingDeathSkills.push({ seatNumber: seat.number, cause: label, causeId: normalizedCauseId })
+  game.pendingDeathSkills.push({ seatNumber: seat.number, cause: label, causeId: normalizedCauseId, fearedAtNight: game.phase === 'night' && rawNightTarget(game, 'nightmare') === seat.number })
   if (!Array.isArray(game.pendingLastWords)) game.pendingLastWords = []
   if (shouldHaveLastWords(game, normalizedCauseId) && !(seat.roleId === 'whiteWolfKing' && normalizedCauseId === 'selfExpose')) game.pendingLastWords.push({ seatNumber: seat.number, cause: label, causeId: normalizedCauseId })
-  if (seat.roleId === 'wolfKing' && ['wolfAttack', 'exile'].includes(normalizedCauseId) && !game.resources.wolfKingClawUsed) game.pendingWolfKingClaw = true
+  if (seat.roleId === 'wolfKing' && ['wolfAttack', 'exile', 'hunterShot'].includes(normalizedCauseId) && !game.resources.wolfKingClawUsed) game.pendingWolfKingClaw = true
   if (seat.roleId === 'wolfBeauty' && normalizedCauseId !== 'knightDuel' && game.special.wolfBeautyTarget) kill(game, game.special.wolfBeautyTarget, 'charmFollow')
   return seat
 }
@@ -655,14 +687,14 @@ function canUseDeathSkill(game, prompt) {
   const seat = game.seats.find(item => item.number === prompt.seatNumber)
   if (!seat) return false
   const promptCauseId = prompt.causeId || causeId(prompt.cause)
-  if (seat.roleId === 'hunter') return !['poison', 'dream', 'dreamFollow'].includes(promptCauseId)
-  if (seat.roleId === 'wolfKing') return ['wolfAttack', 'exile'].includes(promptCauseId) && !game.resources.wolfKingClawUsed
+  if (seat.roleId === 'hunter') return !prompt.fearedAtNight && !['poison', 'dream', 'dreamFollow', 'charmFollow'].includes(promptCauseId)
+  if (seat.roleId === 'wolfKing') return ['wolfAttack', 'exile', 'hunterShot'].includes(promptCauseId) && !game.resources.wolfKingClawUsed
   if (seat.roleId === 'whiteWolfKing') return promptCauseId === 'selfExpose'
   if (seat.roleId === 'awakenedWolfKing' || (roles[seat.roleId] && roles[seat.roleId].camp === 'wolf' && seat.abilities && seat.abilities.clawCharges > 0)) {
     const otherWolfAlive = game.seats.some(other => other.alive && other.number !== seat.number && roles[other.roleId] && roles[other.roleId].camp === 'wolf')
     return otherWolfAlive && ['wolfAttack', 'exile'].includes(promptCauseId) && seat.abilities.clawCharges > 0
   }
-  if (seat.roleId === 'awakenedHiddenWolf' && game.special.awakenedHiddenWolf.mimickedRoleId === 'hunter') return game.day > Number(game.special.awakenedHiddenWolf.mimicDay || 0) && !['poison', 'dream', 'dreamFollow'].includes(promptCauseId)
+  if (seat.roleId === 'awakenedHiddenWolf' && game.special.awakenedHiddenWolf.mimickedRoleId === 'hunter') return (game.day > Number(game.special.awakenedHiddenWolf.mimicDay || 0) || (game.phase === 'day' && game.day === Number(game.special.awakenedHiddenWolf.mimicDay))) && !['poison', 'dream', 'dreamFollow'].includes(promptCauseId)
   return false
 }
 
@@ -680,7 +712,21 @@ function resolveDeathSkill(game, seatNumber, activate, targetNumber) {
     const isHunterShot = seat.roleId === 'hunter' || (seat.roleId === 'awakenedHiddenWolf' && game.special.awakenedHiddenWolf.mimickedRoleId === 'hunter')
     const isChargedClaw = !isHunterShot && seat.roleId !== 'wolfKing' && seat.abilities && seat.abilities.clawCharges > 0
     if (!isChargedClaw) game.pendingDeathSkills.shift()
+    const sourceHasLastWords = game.pendingLastWords.some(item => item.seatNumber === seat.number)
     kill(game, target.number, isHunterShot ? 'hunterShot' : seat.roleId === 'wolfKing' ? 'wolfKingClaw' : seat.roleId === 'whiteWolfKing' ? 'whiteWolfClaw' : 'awakenedClaw')
+    if (sourceHasLastWords && seat.roleId !== 'whiteWolfKing' && !game.pendingLastWords.some(item => item.seatNumber === target.number)) {
+      const sourceIndex = game.pendingLastWords.findIndex(item => item.seatNumber === seat.number)
+      game.pendingLastWords.splice(sourceIndex + 1, 0, { seatNumber: target.number, cause: target.deathCause })
+    }
+    if (game.dayState && game.dayState.nightLastWords) game.pendingLastWords.sort((left, right) => left.seatNumber - right.seatNumber)
+    if (seat.roleId === 'whiteWolfKing' && game.sheriffElectionInterrupted && !game.sheriffElectionDone) {
+      game.sheriffElectionDone = true
+      game.sheriffElectionInterrupted = false
+      game.sheriffElectionSnapshot = null
+      game.sheriffSeat = null
+      if (game.dayState) { game.dayState.endAfterDeathSkills = true; game.dayState.afterDeathStage = 'selfExposeNight' }
+      addLog(game, '白狼王警上自曝并发动爪击，警徽流失')
+    }
     if (seat.roleId === 'wolfKing') {
       game.resources.wolfKingClawUsed = true
       game.pendingWolfKingClaw = false
@@ -734,7 +780,8 @@ function rawNightTarget(game, actionId) {
 }
 
 function swapTarget(game, targetNumber) {
-  const pair = actionValue(game, 'magician').targets || []
+  const copied = dynamicSkillForAction(game, 'eclipseMaidAbility')
+  const pair = copied && copied.skill === 'magician' ? (actionValue(game, 'eclipseMaidAbility').targets || []) : (actionValue(game, 'magician').targets || [])
   if (pair.length !== 2) return targetNumber
   if (Number(targetNumber) === Number(pair[0])) return Number(pair[1])
   if (Number(targetNumber) === Number(pair[1])) return Number(pair[0])
@@ -755,7 +802,7 @@ function effectiveActionTarget(game, actionId, actor, isGoodSkill = false) {
 
 function settleNight(game) {
   ensureGameState(game)
-  if (isGuidedFirstNight(game) && !guidedFirstNightReadyToSettle(game, getBoard(game.boardId))) throw new Error('请按顺序完成身份确认与夜间行动')
+  if (isGuidedFirstNight(game) && !guidedFirstNightReadyToSettle(game, getGameBoard(game))) throw new Error('请按顺序完成身份确认与夜间行动')
   ensureLonelyGirlTarget(game)
   const boardActions = Object.keys(game.night.actions || {})
   if (!boardActions.length) {
@@ -765,15 +812,20 @@ function settleNight(game) {
     if (game.night.witchAction) setWitchAction(game, game.night.witchAction, game.night.witchTarget)
   }
 
+  // 依最终夜间状态清理被恐惧、封印、吞噬、已出局或尚未到发动夜数的旧操作。
+  const nightCards = getNightActionCards(game, getGameBoard(game))
+  nightCards.filter(card => !card.enabled || (card.selectedTarget && !card.targetNumbers.includes(Number(card.selectedTarget)))).forEach(card => clearNightAction(game, card.id))
+  const partialAction = nightCards.find(card => card.enabled && ((card.kind === 'witch' && card.choice === 'poison' && !card.selectedTarget) || (card.kind === 'skillTarget' && Boolean(card.choice) !== Boolean(card.selectedTarget))))
+  if (partialAction) throw new Error(`请完整记录${partialAction.name}的技能与目标`)
   if (!isGuidedFirstNight(game)) {
-    const seerCard = getNightActionCards(game, getBoard(game.boardId)).find(card => card.id === 'seer')
+    const seerCard = nightCards.find(card => card.id === 'seer')
     if (seerCard) addLog(game, `第${game.day}夜：${seerActionLog(seerCard)}`)
   }
 
   const events = []
   const addEvent = (number, cause, options = {}) => {
     const seat = game.seats.find(item => item.alive && item.number === Number(number))
-    if (seat && !events.some(item => item.number === seat.number)) events.push({ number: seat.number, cause, ...options })
+    if (seat && seat.roleId !== 'evilKnight' && !events.some(item => item.number === seat.number)) events.push({ number: seat.number, cause, ...options })
   }
   const actor = roleId => aliveSeatForRole(game, roleId)
   const isFeared = roleId => {
@@ -783,7 +835,8 @@ function settleNight(game) {
     return Boolean((roles[roleId] && roles[roleId].camp === 'good' && game.special.goodSkillsSealedTonight) || (fearTarget && roleSeat && roleSeat.number === Number(fearTarget)) || (swallowed && roleSeat && roleSeat.number === Number(swallowed)))
   }
 
-  const magicianPair = actionValue(game, 'magician').targets || []
+  const copiedContext = dynamicSkillForAction(game, 'eclipseMaidAbility')
+  const magicianPair = copiedContext && copiedContext.skill === 'magician' ? (actionValue(game, 'eclipseMaidAbility').targets || []) : (actionValue(game, 'magician').targets || [])
   if (magicianPair.length === 2 && !game.special.magicianUsed) {
     game.special.magicianUsed = true
     game.special.magicianSwappedSeats = magicianPair.slice()
@@ -793,8 +846,8 @@ function settleNight(game) {
   const charmTarget = effectiveActionTarget(game, 'wolfBeauty', actor('wolfBeauty'))
   game.special.wolfBeautyTarget = charmTarget || null
 
-  const merchantAction = actionValue(game, 'miracleMerchant')
-  const merchant = actor('miracleMerchant')
+  const merchantAction = copiedContext && copiedContext.skill === 'miracleMerchant' ? actionValue(game, 'eclipseMaidAbility') : actionValue(game, 'miracleMerchant')
+  const merchant = copiedContext && copiedContext.skill === 'miracleMerchant' ? actor('eclipseMaid') : actor('miracleMerchant')
   if (merchant && merchantAction.target && merchantAction.choice && !game.special.miracleMerchantUsed) {
     game.special.miracleMerchantUsed = true
     const lucky = game.seats.find(seat => seat.number === Number(merchantAction.target))
@@ -842,8 +895,9 @@ function settleNight(game) {
   const normalGuard = !isFeared('guard') ? effectiveActionTarget(game, 'guard', actor('guard'), true) : null
   if (normalGuard && normalGuard === game.resources.lastGuardTarget) throw new Error('守卫不能连续两晚守护同一名玩家')
   const radiant = !isFeared('radiantCount') ? effectiveActionTarget(game, 'radiantCount', actor('radiantCount'), true) : null
-  const dreamer = actor('dreamer')
-  const dreamTarget = !isFeared('dreamer') ? effectiveActionTarget(game, 'dreamer', dreamer, true) : null
+  const copiedDream = maid && game.special.eclipseMaid.copiedRoleId === 'dreamer'
+  const dreamer = copiedDream ? maid : actor('dreamer')
+  const dreamTarget = copiedDream ? effectiveActionTarget(game, 'eclipseMaidAbility', maid) : (!isFeared('dreamer') ? effectiveActionTarget(game, 'dreamer', dreamer, true) : null)
   const hiddenSkill = actionValue(game, 'hiddenWolfAbility')
   const hiddenRole = game.special.awakenedHiddenWolf.mimickedRoleId
   const hiddenSkillReady = hidden && game.day > Number(game.special.awakenedHiddenWolf.mimicDay || 0)
@@ -861,7 +915,7 @@ function settleNight(game) {
 
   let wolfTarget = effectiveActionTarget(game, 'wolves', activeWolfTeam(game)[0])
   if (fearTarget && activeWolfTeam(game).some(seat => seat.number === Number(fearTarget))) wolfTarget = null
-  const fogTargets = actionValue(game, 'alchemistWitch').targets || []
+  const fogTargets = (dynamicSkillForAction(game, 'eclipseMaidAbility') || {}).skill === 'alchemistWitch' ? (actionValue(game, 'eclipseMaidAbility').targets || []) : (actionValue(game, 'alchemistWitch').targets || [])
   if (fogTargets.length === 3 && game.special.alchemistWitch.fogAvailable) game.special.alchemistWitch.fogAvailable = false
   if (!wolfTarget && fogTargets.length === 3 && activeWolfTeam(game).length) wolfTarget = Number(fogTargets[Math.floor(Math.random() * fogTargets.length)])
   const copiedWitchChoice = maid && maidRole === 'witch' ? (maidAbility.choice || 'none') : 'none'
@@ -881,10 +935,12 @@ function settleNight(game) {
 
   const wolfVictim = wolfTarget && game.seats.find(seat => seat.number === wolfTarget)
   const wolfImmune = wolfVictim && ['cursedFox', 'evilKnight'].includes(wolfVictim.roleId)
-  const guardedAndSaved = guardedTargets.includes(wolfTarget) && saveUsed
-  const wolfProtected = fullProtection.includes(wolfTarget) || (guardedTargets.includes(wolfTarget) && !saveUsed) || (saveUsed && !guardedTargets.includes(wolfTarget))
+  const guardSaveDies = getGameBoard(game).guardSaveDies !== false
+  const guardedAndSaved = guardedTargets.includes(wolfTarget) && saveUsed && guardSaveDies
+  const wolfProtected = fullProtection.includes(wolfTarget) || (guardedTargets.includes(wolfTarget) && !saveUsed) || (saveUsed && (!guardedTargets.includes(wolfTarget) || !guardSaveDies))
   if (wolfVictim && !wolfImmune && (!wolfProtected || guardedAndSaved)) {
-    const snake = actor('alchemistWitch')
+    const snake = maid && maidRole === 'alchemistWitch' ? maid : (!isFeared('alchemistWitch') ? actor('alchemistWitch') : null)
+    game.special.alchemistWitch.handlerSeat = snake ? snake.number : null
     if (snake && game.special.alchemistWitch.snakeAvailable) game.special.alchemistWitch.pendingWolfTarget = wolfTarget
     else addEvent(wolfTarget, guardedAndSaved ? 'overheal' : 'wolfAttack')
   } else game.special.alchemistWitch.pendingWolfTarget = null
@@ -893,7 +949,7 @@ function settleNight(game) {
   if (poisonUsed) {
     const target = game.seats.find(seat => seat.number === witchTarget)
     if (target && target.roleId === 'evilKnight') poisonHitEvilKnight = true
-    else if (target && !['cursedFox', 'demonHunter'].includes(target.roleId) && !fullProtection.includes(witchTarget)) addEvent(witchTarget, 'poison')
+    else if (target && target.roleId !== 'cursedFox' && !(target.roleId === 'demonHunter' && (!devoured || devoured.number !== target.number)) && !(maid && target.number === maid.number && maidRole === 'demonHunter') && !fullProtection.includes(witchTarget)) addEvent(witchTarget, 'poison')
   }
 
   const seer = actor('seer')
@@ -902,13 +958,15 @@ function settleNight(game) {
   const inspected = seerTarget && game.seats.find(seat => seat.number === seerTarget)
   if (inspected && inspected.roleId === 'cursedFox') addEvent(inspected.number, 'inspection')
   const seerHitEvilKnight = Boolean(inspected && inspected.roleId === 'evilKnight' && seer)
-  if (seerHitEvilKnight) addEvent(seer.number, 'inspection')
-  else if (poisonHitEvilKnight && witchActor) addEvent(witchActor.number, 'inspection')
+  if (!game.special.evilKnightBacklashUsed && (seerHitEvilKnight || (poisonHitEvilKnight && witchActor))) {
+    game.special.evilKnightBacklashUsed = true
+    addEvent(seerHitEvilKnight ? seer.number : witchActor.number, 'inspection')
+  }
   if (inspected && inspected && roles[effectiveRoleId(game, inspected)] && roles[effectiveRoleId(game, inspected)].camp !== 'wolf') inspected.marks.goldWater = true
 
   if (game.day >= 2) {
     const wolfWitchTarget = effectiveActionTarget(game, 'wolfWitch', actor('wolfWitch'))
-    const pureTarget = effectiveActionTarget(game, 'pureWhiteGirl', actor('pureWhiteGirl'), true)
+    const pureTarget = maid && maidRole === 'pureWhiteGirl' ? effectiveActionTarget(game, 'eclipseMaidAbility', maid) : effectiveActionTarget(game, 'pureWhiteGirl', actor('pureWhiteGirl'), true)
     const wolfWitchVictim = wolfWitchTarget && game.seats.find(seat => seat.number === wolfWitchTarget)
     const pureVictim = pureTarget && game.seats.find(seat => seat.number === pureTarget)
     if (wolfWitchVictim && wolfWitchVictim.roleId === 'pureWhiteGirl') addEvent(wolfWitchVictim.number, 'inspection')
@@ -933,21 +991,22 @@ function settleNight(game) {
     game.special.awakenedHiddenWolf.extraClawUsed = true
   }
 
-  const huntTarget = effectiveActionTarget(game, 'demonHunter', actor('demonHunter'), true)
+  const huntActor = maid && maidRole === 'demonHunter' ? maid : actor('demonHunter')
+  const huntTarget = effectiveActionTarget(game, maid && maidRole === 'demonHunter' ? 'eclipseMaidAbility' : 'demonHunter', huntActor, true)
   if (huntTarget) {
     const hunted = game.seats.find(seat => seat.number === huntTarget)
     if (hunted && roles[hunted.roleId].camp === 'wolf' && hunted.roleId !== 'evilKnight') addEvent(hunted.number, 'hunt')
-    else if (hunted && roles[hunted.roleId].camp !== 'wolf') addEvent(actor('demonHunter').number, 'hunt')
+    else if (hunted && roles[hunted.roleId].camp !== 'wolf') addEvent(huntActor.number, 'hunt')
   }
 
   if (dreamTarget && game.special.dreamerLastTarget === dreamTarget && radiant !== dreamTarget) addEvent(dreamTarget, 'dream')
   game.special.dreamerLastTarget = dreamTarget || null
   if (radiant) game.special.radiantCountLastTarget = radiant
-  if (normalGuard) game.resources.lastGuardTarget = rawNightTarget(game, 'guard')
+  if (normalGuard || maidGuard) game.resources.lastGuardTarget = normalGuard ? rawNightTarget(game, 'guard') : rawNightTarget(game, 'eclipseMaidAbility')
   const maidBacklash = maid && devoured && (devoured.roleId === 'radiantCount' || radiant === devoured.number)
   if (maidBacklash) addEvent(maid.number, 'backlash')
   if (maid && dreamTarget === maid.number && dreamer && events.some(event => event.number === maid.number)) addEvent(dreamTarget, 'dreamFollow')
-  if (dreamer && events.some(event => event.number === dreamer.number) && dreamTarget && radiant !== dreamTarget) addEvent(dreamTarget, 'dreamFollow')
+  if (dreamer && !copiedDream && events.some(event => event.number === dreamer.number) && dreamTarget && radiant !== dreamTarget) addEvent(dreamTarget, 'dreamFollow')
 
   if (luckyState && luckyAction.target && !luckyState.used) {
     if (luckyState.skill === 'poison') addEvent(luckyAction.target, 'poison')
@@ -957,17 +1016,18 @@ function settleNight(game) {
     }
     luckyState.used = true
   }
-  const mirrorTarget = rawNightTarget(game, 'mirrorGirl')
+  const mirrorTarget = maid && maidRole === 'mirrorGirl' ? rawNightTarget(game, 'eclipseMaidAbility') : rawNightTarget(game, 'mirrorGirl')
   if (mirrorTarget && !game.special.mirrorGirlInspected.includes(mirrorTarget)) game.special.mirrorGirlInspected.push(mirrorTarget)
   const gargoyleTarget = rawNightTarget(game, 'gargoyle')
   if (gargoyleTarget && !game.special.gargoyleInspected.includes(gargoyleTarget)) game.special.gargoyleInspected.push(gargoyleTarget)
-  game.special.crowTarget = rawNightTarget(game, 'crow') || null
+  game.special.crowTarget = (maid && maidRole === 'crow' ? rawNightTarget(game, 'eclipseMaidAbility') : rawNightTarget(game, 'crow')) || null
   const delayedApostle = game.special.bloodApostleDelayed && game.seats.find(seat => seat.alive && seat.roleId === 'bloodApostle')
   if (delayedApostle) {
     addEvent(delayedApostle.number, 'exile')
     game.special.bloodApostleDelayed = false
   }
 
+  game.special.cursedFoxNightSurvivor = game.seats.some(seat => seat.alive && seat.roleId === 'cursedFox')
   const deaths = []
   events.forEach(event => {
     const seat = kill(game, event.number, event.cause)
@@ -978,6 +1038,8 @@ function settleNight(game) {
   addLog(game, `第${game.day}夜：${text}`)
   game.phase = 'day'
   game.dayState = createDayState(game)
+  game.dayState.nightLastWords = true
+  game.pendingLastWords.sort((left, right) => left.seatNumber - right.seatNumber)
   game.special.goodSkillsSealedTonight = false
   evaluateWinner(game)
   return deaths
@@ -987,7 +1049,7 @@ function resolveAlchemistSnake(game, useSnake) {
   ensureGameState(game)
   const number = game.special.alchemistWitch.pendingWolfTarget
   if (!number) throw new Error('当前没有待法老之蛇结算的狼刀目标')
-  const alchemist = aliveSeatForRole(game, 'alchemistWitch')
+  const alchemist = game.special.alchemistWitch.handlerSeat ? game.seats.find(seat => seat.alive && seat.number === game.special.alchemistWitch.handlerSeat) : aliveSeatForRole(game, 'alchemistWitch')
   const canSelfSave = alchemist && alchemist.number === number && game.day === 1
   const use = Boolean(useSnake && alchemist && game.special.alchemistWitch.snakeAvailable && (alchemist.number !== number || canSelfSave))
   if (use) {
@@ -1054,12 +1116,21 @@ function resolveKnightDuel(game, targetNumber) {
 function createDayState(game) {
   const resumeElection = game.sheriffElectionInterrupted && !game.sheriffElectionDone && game.sheriffElectionSnapshot
   const snapshot = game.sheriffElectionSnapshot || {}
+  const candidates = (snapshot.sheriffCandidates || []).filter(number => game.seats.some(seat => seat.number === number && seat.alive && !seat.foolRevealed))
+  if (resumeElection && candidates.length <= 1) {
+    game.sheriffElectionDone = true
+    game.sheriffElectionInterrupted = false
+    game.sheriffSeat = candidates[0] || null
+    game.sheriffElectionSnapshot = null
+    addLog(game, candidates.length ? `${candidates[0]}号因其余候选人出局自动当选警长` : '候选人全部出局，警徽流失')
+    return createDayState(game)
+  }
   const snakePending = Boolean(game.special && game.special.alchemistWitch && game.special.alchemistWitch.pendingWolfTarget)
   return {
-    stage: resumeElection ? 'sheriffResumeWithdraw' : game.sheriffElectionDone ? (snakePending ? 'alchemistDiscussion' : 'announceNight') : 'sheriffSignup',
-    sheriffCandidates: resumeElection ? (snapshot.sheriffCandidates || []) : [],
-    sheriffInitialCandidates: resumeElection ? (snapshot.sheriffInitialCandidates || []) : [],
-    sheriffWithdrawn: resumeElection ? (snapshot.sheriffWithdrawn || []) : [],
+    stage: resumeElection ? 'sheriffResumeWithdraw' : game.sheriffElectionDone ? (snakePending ? (game.day === 1 ? 'alchemistSnake' : 'alchemistDiscussion') : 'announceNight') : 'sheriffSignup',
+    sheriffCandidates: resumeElection ? candidates : [],
+    sheriffInitialCandidates: resumeElection ? (snapshot.sheriffInitialCandidates || []).slice() : [],
+    sheriffWithdrawn: resumeElection ? (snapshot.sheriffWithdrawn || []).slice() : [],
     sheriffVotes: {},
     exileMode: 'individual',
     exileVotes: {},
@@ -1075,18 +1146,23 @@ function addVoteHistory(game, round) {
 
 function applyDayEvent(game, type, number) {
   if (type === 'none') {
+    game.special.lastExiledSeat = null
     addLog(game, `第${game.day}天：无人出局`)
   } else if (type === 'exile') {
+    if (game.dayState) game.dayState.nightLastWords = false
     const seat = game.seats.find(item => item.number === Number(number))
     if (!seat || !seat.alive) throw new Error('请选择仍存活的玩家')
     if (seat.roleId === 'fool' && !seat.foolRevealed) {
+      game.special.lastExiledSeat = null
       seat.foolRevealed = true
       queueSheriffTransfer(game, seat, '愚者翻牌')
       addLog(game, `第${game.day}天：${seat.number}号愚者被放逐，翻牌但不出局`)
     } else if (seat.roleId === 'bloodApostle' && !game.seats.some(other => other.alive && other.number !== seat.number && roles[other.roleId] && roles[other.roleId].camp === 'wolf')) {
+      game.special.lastExiledSeat = seat.number
       game.special.bloodApostleDelayed = true
       addLog(game, `第${game.day}天：${number}号血夜使徒被放逐，延迟至下一次天亮出局`)
     } else {
+      game.special.lastExiledSeat = seat.number
       kill(game, number, '放逐')
       addLog(game, `第${game.day}天：${number}号被放逐出局`)
     }
@@ -1095,15 +1171,16 @@ function applyDayEvent(game, type, number) {
     addLog(game, `第${game.day}天：猎人开枪带走${number}号`)
   } else if (type === 'selfExpose') {
     const seat = game.seats.find(item => item.number === Number(number))
-    if (!seat || !seat.alive) throw new Error('请选择仍存活的玩家')
+    const nightVictimDuringElection = seat && seat.roleId === 'wolf' && game.phase === 'day' && !game.sheriffElectionDone && game.dayState && ['sheriffSpeech', 'sheriffTie', 'sheriffResumeWithdraw'].includes(game.dayState.stage) && (game.latestNightDeathNumbers || []).includes(seat.number)
+    if (!seat || (!seat.alive && !nightVictimDuringElection)) throw new Error('请选择可在当前阶段自曝的狼人')
     if (!(game.selfExposeRoleIds || []).includes(seat.roleId)) throw new Error('该身份不能自曝')
-    kill(game, number, '狼人自曝')
+    if (seat.alive) kill(game, number, '狼人自曝')
     if (seat.roleId === 'bloodApostle') game.special.goodSkillsSealedTonight = true
     addLog(game, `第${game.day}天：${number}号狼人自曝`)
   } else if (type === 'wolfKingClaw') {
     const wolfKing = game.seats.find(item => item.roleId === 'wolfKing')
     if (!wolfKing || wolfKing.alive || !game.pendingWolfKingClaw || game.resources.wolfKingClawUsed) throw new Error('当前没有可发动的狼王爪击')
-    if (!['狼人袭击', '放逐'].includes(wolfKing.deathCause)) throw new Error('狼王被女巫毒死，不能发动爪击')
+    if (!['狼人袭击', '奶穿', '放逐', '猎人开枪'].includes(wolfKing.deathCause)) throw new Error('狼王被女巫毒死，不能发动爪击')
     const target = game.seats.find(item => item.number === Number(number))
     if (!target || !target.alive) throw new Error('请选择仍存活的玩家')
     kill(game, number, '狼王爪击')
@@ -1120,6 +1197,7 @@ function applyDayEvent(game, type, number) {
 
 function nextNight(game) {
   game.day += 1
+  if (game.special) game.special.cursedFoxNightSurvivor = false
   game.phase = 'night'
   game.night = emptyNight()
   game.dayState = null
@@ -1141,10 +1219,18 @@ function evaluateWinner(game) {
   const gods = alive.filter(seat => roles[seat.roleId].group === '神职').length
   const cursedFoxAlive = alive.some(seat => seat.roleId === 'cursedFox')
   const lonelyGirlAlive = alive.some(seat => seat.roleId === 'lonelyGirl')
-  let winner = null
-  if (game.boardId === 'brotherFoxCrow12' && cursedFoxAlive && (villagers === 0 || gods === 0 || wolves === 0)) winner = '咒狐'
-  else if ((villagers === 0 || gods === 0) && !lonelyGirlAlive) winner = '狼人阵营'
-  else if (wolves === 0) winner = '好人阵营'
+  const board = getGameBoard(game)
+  if (board && board.winMode === 'manual') { if (game.special) game.special.cursedFoxNightSurvivor = false; return null }
+  const presentGroup = group => game.seats.some(seat => roles[seat.roleId].group === group)
+  const wolfWin = board && board.winMode === 'city' ? villagers + gods === 0
+    : board && board.id === 'custom' ? (presentGroup('平民') && villagers === 0) || (presentGroup('神职') && gods === 0)
+      : villagers === 0 || gods === 0
+  // 先判阵营条件：同夜双方达标时按文档“爪击在先”，孤独少女仍阻止狼人获胜。
+  const campWinner = wolfWin && !lonelyGirlAlive ? '狼人阵营' : wolves === 0 ? '好人阵营' : null
+  // 夜间批量出局及其待处理技能结算期间，咒狐按“出局在后”截取胜利。
+  const foxEligible = cursedFoxAlive || Boolean(game.special && game.special.cursedFoxNightSurvivor)
+  const winner = campWinner && foxEligible ? '咒狐' : campWinner
+  if (game.special) game.special.cursedFoxNightSurvivor = false
   if (winner) {
     game.status = 'ended'
     game.winner = winner
@@ -1154,4 +1240,4 @@ function evaluateWinner(game) {
   return winner
 }
 
-module.exports = { makeGame, makeFirstNightIdentityGame, getIdentityAssignmentPrompt, toggleIdentityAssignmentSeat, completeIdentityAssignment, getGuidedFirstNightAction, completeGuidedFirstNightAction, guidedFirstNightReadyToSettle, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, canWitchSelfSave, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }
+module.exports = { requiredNightActionIncomplete, makeGame, makeFirstNightIdentityGame, getIdentityAssignmentPrompt, toggleIdentityAssignmentSeat, completeIdentityAssignment, getGuidedFirstNightAction, completeGuidedFirstNightAction, guidedFirstNightReadyToSettle, roleAlive, setLonelyGirlTarget, setNightActionTarget, setNightActionChoice, setWitchAction, canWitchSelfSave, toggleNightActionTarget, clearNightAction, getNightActionCards, getWolfTeamNumbers, inspectionResult, settleNight, resolveAlchemistSnake, canUseOrderPrince, resolveOrderPrince, resolveKnightDuel, applyDayEvent, nextNight, evaluateWinner, addLog, checkpointStep, restoreStep, createDayState, canUseDeathSkill, resolveDeathSkill, resolveSheriffTransfer, addVoteHistory, shouldHaveLastWords }

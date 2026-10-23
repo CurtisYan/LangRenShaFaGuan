@@ -1,0 +1,32 @@
+<view class="custom-page">
+  <scroll-view scroll-y class="custom-scroll"><view class="custom-content">
+  <view class="custom-hero"><view class="eyebrow">板子配置</view><view class="title">自定义板子</view><view class="muted">选择角色和人数，设置本局规则。</view></view>
+  <view class="surface-card player-count-panel">
+    <view class="setting-title">配置人数</view>
+    <view class="player-count-control"><button class="player-count-arrow quiet {{arrowMotion === 'left' ? (arrowPulse ? 'arrow-moving-left-again' : 'arrow-moving-left') : ''}}" bindanimationend="clearArrowMotion" data-direction="-1" bindtap="changePlayerCount" disabled="{{targetPlayers <= 2}}" aria-label="减少配置人数">‹</button><view class="player-count-value">{{targetPlayers}}<text>人</text></view><button class="player-count-arrow quiet {{arrowMotion === 'right' ? (arrowPulse ? 'arrow-moving-right-again' : 'arrow-moving-right') : ''}}" bindanimationend="clearArrowMotion" data-direction="1" bindtap="changePlayerCount" aria-label="增加配置人数">›</button></view>
+    <view class="player-count-options"><button wx:for="{{playerCountOptions}}" wx:key="*this" class="{{targetPlayers === item ? 'chosen' : ''}}" data-value="{{item}}" bindtap="changePlayerCount">{{item}} 人</button></view>
+  </view>
+  <view class="role-help">点击角色卡片查看详情，点击右侧 ＋ 添加角色。</view>
+  <block wx:for="{{groups}}" wx:key="camp" wx:for-item="group">
+    <view class="camp-title {{group.camp}}"><text class="camp-bar"></text>{{group.name}}</view>
+    <view class="surface-card selection-panel"><view class="custom-role-grid">
+      <block wx:for="{{group.items}}" wx:key="id">
+        <view wx:if="{{item.counter}}" class="role-counter tap-surface" data-id="{{item.id}}" bindtap="openRoleDetail"><view><text>{{item.name}}</text></view><view class="stepper"><button disabled="{{!item.count}}" data-id="{{item.id}}" data-delta="-1" catchtap="changeRole" aria-label="减少{{item.name}}">−</button><text>{{item.count}}</text><button data-id="{{item.id}}" data-delta="1" catchtap="changeRole" aria-label="增加{{item.name}}">＋</button></view></view>
+        <view wx:else class="role-option tap-surface {{item.count ? 'chosen' : ''}}" data-id="{{item.id}}" bindtap="openRoleDetail" aria-role="button" aria-label="查看{{item.name}}详情"><view class="role-name"><text>{{item.name}}</text></view><button class="role-toggle {{item.count ? 'is-selected' : ''}}" data-id="{{item.id}}" catchtap="changeRole" aria-label="{{item.count ? '移除' : '添加'}}{{item.name}}">{{item.count ? '−' : '＋'}}</button></view>
+      </block>
+    </view></view>
+  </block>
+  <view class="camp-title"><text class="camp-bar"></text>房间设置</view>
+  <view class="surface-card settings-panel">
+    <view class="setting-block"><view class="setting-title">女巫首夜可以自救</view><view class="choice-row"><button class="{{settings.firstNightSelfSave ? 'chosen' : ''}}" data-key="firstNightSelfSave" data-value="{{true}}" bindtap="changeSetting">可以自救</button><button class="{{!settings.firstNightSelfSave ? 'chosen' : ''}}" data-key="firstNightSelfSave" data-value="{{false}}" bindtap="changeSetting">不能自救</button></view><view class="setting-note">之后的夜晚均不能自救。</view></view>
+    <view class="setting-block"><view class="setting-title">同时被守、被解药救</view><view class="choice-row"><button class="{{settings.guardSaveDies ? 'chosen' : ''}}" data-key="guardSaveDies" data-value="{{true}}" bindtap="changeSetting">算死亡</button><button class="{{!settings.guardSaveDies ? 'chosen' : ''}}" data-key="guardSaveDies" data-value="{{false}}" bindtap="changeSetting">不算死亡</button></view></view>
+    <view class="setting-block"><view class="setting-title">竞选警长</view><view class="choice-row"><view class="setting-choice {{settings.sheriff ? 'chosen' : ''}} {{targetPlayers < 9 ? 'choice-disabled' : ''}}" data-key="sheriff" data-value="{{true}}" bindtap="changeSetting" aria-role="button" aria-disabled="{{targetPlayers < 9}}">需要警长</view><button class="{{!settings.sheriff ? 'chosen' : ''}}" data-key="sheriff" data-value="{{false}}" bindtap="changeSetting">不需要警长</button></view></view>
+    <view class="setting-block"><view class="setting-title">警上自曝规则</view><view class="choice-row"><button class="{{settings.exposure === 'single' ? 'chosen' : ''}}" data-key="exposure" data-value="single" bindtap="changeSetting">单曝吞警徽</button><view class="setting-choice {{settings.exposure === 'double' ? 'chosen' : ''}} {{targetPlayers <= 10 ? 'choice-disabled' : ''}}" data-key="exposure" data-value="double" bindtap="changeSetting" aria-role="button" aria-disabled="{{targetPlayers <= 10}}">双曝吞警徽</view></view><view class="setting-note">{{settings.sheriff ? '10人及以下仅支持单曝吞警徽。' : '开启警长竞选后生效；10人及以下仅支持单曝。'}}</view></view>
+    <view class="setting-block"><view class="setting-title">狼人胜负判定</view><view wx:if="{{counts.cursedFox}}" class="setting-note third-party-rule">已选咒狐：好人或狼人达成胜利条件时，存活的咒狐获胜；咒狐同夜出局仍按“出局在后”获胜。人工裁决模式由法官记录结果。</view><view class="win-options" aria-role="radiogroup"><view wx:for="{{winModes}}" wx:key="id" class="win-option tap-surface {{settings.winMode === item.id ? 'chosen' : ''}}" data-key="winMode" data-value="{{item.id}}" bindtap="changeSetting" aria-role="radio" aria-checked="{{settings.winMode === item.id}}"><view class="win-copy"><view>{{item.name}}</view><view class="setting-note">{{item.note}}</view></view><view class="win-radio"><view wx:if="{{settings.winMode === item.id}}" class="win-radio-dot"></view></view></view></view></view>
+  </view>
+  </view></scroll-view>
+  <view class="custom-footer">
+    <view wx:if="{{selectedRoles.length}}" class="selected-role-tags"><view wx:for="{{selectedRoles}}" wx:key="id" class="selected-role-tag" data-id="{{item.id}}" bindtap="openRoleDetail">{{item.name}} × {{item.count}}</view></view>
+    <view wx:else class="footer-empty">还没有选择角色</view>
+    <view class="footer-actions"><view class="footer-total"><text>已选</text><view class="selection-count">{{total}}<text>/{{targetPlayers}}</text></view></view><button class="primary" bindtap="continueSetup">下一步 · 配置身份</button></view></view>
+</view>

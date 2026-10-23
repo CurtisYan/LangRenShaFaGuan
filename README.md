@@ -4,7 +4,8 @@
 
 ## 功能
 
-- 内置 19 个板子、34 种角色资料
+- 内置 22 个预设板子、34 种角色资料，支持自定义选角和房间规则
+- 最多置顶 5 个板子，自定义板子首次更新默认置顶首位
 - 按座位录入身份并校验数量
 - 引导夜间行动、警长竞选、投票、放逐、自曝与特殊技能结算
 - 自动判断胜负，支持步骤回退、对局日志和中断续局
@@ -23,4 +24,7 @@ node tests/game-engine.test.js
 node tests/game-page.test.js
 node tests/reference-pages.test.js
 node tests/setup-page.test.js
+node tests/custom-board.test.js
+node tests/custom-flow.test.js
+node tests/index-page.test.js
 ```

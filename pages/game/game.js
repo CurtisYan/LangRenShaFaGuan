@@ -1,4 +1,4 @@
-const { getBoard } = require('../../data/boards')
+const { getGameBoard } = require('../../data/boards')
 const { roles } = require('../../data/roles')
 const engine = require('../../utils/game-engine')
 
@@ -17,7 +17,7 @@ Page({
   refresh() {
     const game = getApp().globalData.game
     if (!game) return wx.redirectTo({ url: '/pages/index/index' })
-    const board = getBoard(game.boardId)
+    const board = getGameBoard(game)
     if (game.phase === 'day' && !game.dayState) { game.dayState = engine.createDayState(game); getApp().saveGame(game) }
     const aliveSeats = game.seats.filter(seat => seat.alive)
     const roleSeat = roleId => game.seats.find(seat => seat.roleId === roleId)
@@ -101,7 +101,10 @@ Page({
     const tally = isSimpleExileVote ? { ...voteMap } : this.tallyVotes(voteMap, game.sheriffSeat)
     if (isExileVote && game.special.crowTarget && votingSeats.some(seat => seat.number === game.special.crowTarget)) tally[game.special.crowTarget] = (tally[game.special.crowTarget] || 0) + 1
     const voteRecords = this.groupVoteRecords(voters, voteMap, game.sheriffSeat)
-    const selfExposeCandidates = state.stage === 'orderPrinceSpeech' ? [] : aliveSeats.filter(seat => roles[seat.roleId] && roles[seat.roleId].canSelfExpose && (board.dayRules.selfExposeRoleIds || []).includes(seat.roleId)).map(seat => ({ number: seat.number, name: seat.roleName }))
+    const exposureStages = ['sheriffSpeech', 'sheriffTie', 'sheriffResumeWithdraw', 'discussion', 'alchemistDiscussion', 'exileTie']
+    const nightExposure = !game.sheriffElectionDone && ['sheriffSpeech', 'sheriffTie', 'sheriffResumeWithdraw'].includes(state.stage)
+    const exposureSeats = aliveSeats.concat(nightExposure ? game.seats.filter(seat => !seat.alive && seat.roleId === 'wolf' && (game.latestNightDeathNumbers || []).includes(seat.number)) : [])
+    const selfExposeCandidates = !exposureStages.includes(state.stage) ? [] : exposureSeats.filter(seat => roles[seat.roleId] && roles[seat.roleId].canSelfExpose && (board.dayRules.selfExposeRoleIds || []).includes(seat.roleId)).map(seat => ({ number: seat.number, name: seat.roleName }))
     const sheriffSignupSeats = votingSeats.map(seat => ({ number: seat.number, selected: state.sheriffCandidates.includes(seat.number) }))
     const sheriffWithdrawalSeats = state.sheriffCandidates.map(number => ({ number }))
     return { dayState: state, dayStageLabel: dayStageLabels[state.stage] || '白天流程', sheriffCandidates: state.sheriffCandidates.map(number => `${number}号`), sheriffCandidateText: state.sheriffCandidates.map(number => `${number}号`).join('、'), sheriffSignupSeats, sheriffWithdrawalSeats, dayVoters: voters.map(seat => ({ ...seat, selected: false, voted: isSheriffVote && Object.prototype.hasOwnProperty.call(state.sheriffVotes, seat.number) })), voteTargets: targets.concat([null]), voteTargetLabels: targetLabels, voteRecords, voteTally: this.tallyRows(tally), sheriffWeight: board.dayRules.sheriffVoteWeight, sheriffSeat: game.sheriffSeat, selfExposeCandidates, pendingWolfKingClaw: game.pendingWolfKingClaw, knightAvailable: ['discussion', 'alchemistDiscussion'].includes(state.stage) && engine.roleAlive(game, 'knight') && !game.special.knightUsed, selectedVoterIndex: 0, selectedVoterIndices: [], selectedVoteTargetIndex: 0, dayMessage: state.message || '', nightDeathText: this.nightDeathText(game), alchemistWolfTarget: game.special.alchemistWitch.pendingWolfTarget }
@@ -131,7 +134,7 @@ Page({
     }).map(target => ({ target, voters: groups[target].join(' ') }))
   },
   nightDeathText(game) { const deaths = (game.latestNightDeathNumbers || []).map(number => `${number}号`); return deaths.length ? `昨夜${deaths.join('、')}出局。` : '昨夜是平安夜。' },
-  saveAndRefresh(game) { getApp().saveGame(game); this.refresh() },
+  saveAndRefresh(game) { engine.evaluateWinner(game); getApp().saveGame(game); this.refresh() },
   checkpoint(game, label) { engine.checkpointStep(game, label) },
   startHold(event) {
     const key = event.currentTarget.dataset.holdKey
@@ -166,7 +169,30 @@ Page({
     getApp().saveGame(restored.game)
     this.refresh()
   },
-  openBoardDetail() { wx.navigateTo({ url: `/pages/board-detail/board-detail?boardId=${this.data.game.boardId}` }) },
+  openBoardDetail() { wx.navigateTo({ url: `/pages/board-detail/board-detail?boardId=${this.data.game.boardId}${this.data.game.boardId === 'custom' ? '&fromGame=1' : ''}` }) },
+
+  recordManualWinner() {
+    if (this.data.board.winMode !== 'manual' || this.data.game.status === 'ended') return
+    const winners = ['好人阵营', '狼人阵营']
+    if (this.data.game.seats.some(seat => seat.roleId === 'cursedFox')) winners.push('咒狐')
+    wx.showActionSheet({ itemList: winners.map(winner => `${winner}获胜`), success: result => {
+      const winner = winners[result.tapIndex]
+      if (!winner) return
+      wx.showModal({ title: `确认${winner}获胜？`, content: '按场上裁决结束本局并记录结果。', success: decision => {
+        if (!decision.confirm) return
+        const game = this.data.game
+        engine.checkpointStep(game, '记录场上胜负裁决')
+        game.status = 'ended'
+        game.winner = winner
+        game.pendingDeathSkills = []
+        game.pendingWolfKingClaw = false
+        game.pendingLastWords = []
+        game.pendingSheriffTransfer = null
+        engine.addLog(game, `场上裁决：${winner}获胜`)
+        this.saveAndRefresh(game)
+      } })
+    } })
+  },
   toggleIdentitySeat(event) {
     const game = this.data.game
     try { engine.toggleIdentityAssignmentSeat(game, this.data.board, event.currentTarget.dataset.number) } catch (error) { return this.toast(error.message) }
@@ -281,7 +307,7 @@ Page({
     this.saveAndRefresh(game)
   },
   finishNight() {
-    const missing = this.data.nightActionCards.find(card => card.enabled && !card.optional && ((card.kind === 'target' && !card.selectedTarget) || (card.kind === 'multiTarget' && card.targets.length !== card.targetCount)))
+    const missing = this.data.nightActionCards.find(card => engine.requiredNightActionIncomplete(card))
     if (missing) return this.toast(`请先完成${missing.name}`)
     const game = this.data.game
     this.checkpoint(game, `第${game.day}夜行动结束`)
@@ -355,7 +381,7 @@ Page({
   },
   beginSheriffVote() {
     const game = this.data.game; const state = game.dayState
-    if (!state.sheriffCandidates.length) return this.toast('请至少保留一名警长候选人')
+    if (!state.sheriffCandidates.length) return this.noSheriff()
     this.checkpoint(game, state.sheriffPk ? '结束警长PK发言' : '结束警上发言')
     if (state.sheriffCandidates.length === 1) return this.electSheriff(game, state.sheriffCandidates[0], '仅剩一名候选人')
     state.stage = 'sheriffVote'
@@ -388,11 +414,18 @@ Page({
   },
   resolveSheriffVote() {
     const game = this.data.game; const state = game.dayState; const tally = this.tallyVotes(state.sheriffVotes, null); const rows = this.tallyRows(tally)
-    if (!rows.length) return this.toast('请至少记录一票')
+    if (!rows.length) {
+      this.checkpoint(game, '警长投票全员弃票')
+      const eligibleVoters = this.data.dayVoters.map(seat => seat.number)
+      eligibleVoters.forEach(number => { if (!Object.prototype.hasOwnProperty.call(state.sheriffVotes, number)) state.sheriffVotes[number] = null })
+      engine.addVoteHistory(game, { label: '警长投票（全员弃票）', votes: state.sheriffVotes, eligibleVoters, tally: [], sheriffSeat: null })
+      return this.noSheriff()
+    }
     const eligibleVoters = game.seats.filter(seat => seat.alive && (state.sheriffPk ? !state.sheriffCandidates.includes(seat.number) : !state.sheriffInitialCandidates.includes(seat.number) && !state.sheriffWithdrawn.includes(seat.number))).map(seat => seat.number)
     this.checkpoint(game, state.sheriffPk ? '统计警长PK票' : '统计警长票')
     const max = Math.max(...rows.map(row => row.value)); const winners = rows.filter(row => row.value === max).map(row => Number(row.number))
     engine.addVoteHistory(game, { label: state.sheriffPk ? '警长PK投票' : '警长投票', votes: state.sheriffVotes, eligibleVoters, tally: this.tallyRows(tally), sheriffSeat: null })
+    if (winners.length > 1 && state.sheriffPk) return this.noSheriff()
     if (winners.length > 1) { state.stage = 'sheriffTie'; state.sheriffCandidates = winners; state.sheriffPk = true; state.message = `警长投票平票：${winners.map(n => `${n}号`).join('、')}`; return this.saveAndRefresh(game) }
     this.electSheriff(game, winners[0], '警长投票胜出')
   },
@@ -438,6 +471,7 @@ Page({
       return this.saveAndRefresh(game)
     }
     const max = Math.max(...rows.map(row => row.value)); const winners = rows.filter(row => row.value === max).map(row => Number(row.number))
+    if (winners.length > 1 && state.exilePk) { engine.applyDayEvent(game, 'none'); state.stage = 'exileDone'; state.message = '再次平票，本日无人被放逐。'; return this.saveAndRefresh(game) }
     if (winners.length > 1) { state.stage = 'exileTie'; state.exileTieCandidates = winners; state.exilePk = true; state.message = `放逐投票平票：${winners.map(n => `${n}号`).join('、')}`; return this.saveAndRefresh(game) }
     if (!state.exilePk && engine.canUseOrderPrince(game)) {
       state.pendingExileSeat = winners[0]
@@ -472,12 +506,17 @@ Page({
     wx.showActionSheet({ itemList: candidates.map(item => `${item.number}号 ${item.name}`), success: result => {
       const game = this.data.game; const seat = candidates[result.tapIndex]; const state = game.dayState; const duringElection = !game.sheriffElectionDone && ['sheriffSignup', 'sheriffSpeech', 'sheriffVote', 'sheriffTie', 'sheriffResumeWithdraw'].includes(state.stage)
       this.checkpoint(game, `${seat.number}号狼人自曝`)
+      const wasNightDead = !game.seats.find(item => item.number === seat.number).alive
       engine.applyDayEvent(game, 'selfExpose', seat.number); game.selfExposeCount += 1
       if (duringElection) {
-        game.sheriffElectionInterrupted = game.selfExposeCount < 2
-        game.sheriffElectionSnapshot = { sheriffCandidates: state.sheriffCandidates, sheriffInitialCandidates: state.sheriffInitialCandidates, sheriffWithdrawn: state.sheriffWithdrawn }
-        state.stage = 'announceNight'; state.endAfterDeathSkills = game.selfExposeCount < 2; state.message = game.selfExposeCount >= 2 ? '双爆吞警徽：本局没有警长。请宣布警徽流失，公布昨夜信息后直接进入夜晚。' : '警上狼人自曝：请先公布昨夜信息；本日不再继续白天流程。'
-        if (game.selfExposeCount >= 2) game.sheriffElectionDone = true
+        const doubleExposure = this.data.board.dayRules.exposure === 'double'
+        const resumeElection = doubleExposure && game.selfExposeCount < 2
+        game.sheriffElectionInterrupted = resumeElection
+        game.sheriffElectionSnapshot = resumeElection ? { sheriffCandidates: state.sheriffCandidates, sheriffInitialCandidates: state.sheriffInitialCandidates, sheriffWithdrawn: state.sheriffWithdrawn } : null
+        state.stage = 'announceNight'
+        state.endAfterDeathSkills = !(wasNightDead && !doubleExposure)
+        state.message = resumeElection ? '警上狼人自曝：请先公布昨夜信息；本日不再继续白天流程。' : wasNightDead && !doubleExposure ? '单曝吞警徽：本局没有警长。公布昨夜信息并完成出局结算后，继续白天放逐发言。' : `${doubleExposure ? '双曝' : '单曝'}吞警徽：本局没有警长。请宣布警徽流失，公布昨夜信息后直接进入夜晚。`
+        if (!resumeElection) game.sheriffElectionDone = true
       } else { state.stage = 'deathSkills'; state.endAfterDeathSkills = true }
       this.saveAndRefresh(game)
     } })

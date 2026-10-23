@@ -54,7 +54,6 @@
       <view class="day-console">
         <view class="day-head"><view><view class="eyebrow">白天流程 · {{dayStageLabel}}</view><view class="subtitle">天亮了</view></view><button wx:if="{{selfExposeCandidates.length}}" class="self-expose" size="mini" bindtap="triggerSelfExpose">狼人自曝</button></view>
         <view wx:if="{{dayMessage}}" class="notice-bar">{{dayMessage}}</view>
-        <button wx:if="{{pendingWolfKingClaw}}" class="claw-button" bindtap="triggerWolfKingClaw">处理狼王爪击</button>
 
         <view wx:if="{{dayState.stage === 'sheriffSignup'}}" class="stage-panel"><view class="stage-kicker">01</view><view class="subtitle">上警</view><view class="seat-pills"><view wx:for="{{sheriffSignupSeats}}" wx:key="number" class="seat-pill tap-surface {{item.selected ? 'chosen' : ''}}" data-number="{{item.number}}" bindtap="toggleSheriffCandidate">{{item.number}}号</view></view><view class="button-row"><button class="secondary" bindtap="noSheriff">无人上警</button><button class="primary" bindtap="beginSheriffSpeech">确认名单</button></view></view>
         <view wx:elif="{{dayState.stage === 'sheriffSpeech'}}" class="stage-panel"><view class="stage-kicker">02</view><view class="subtitle">{{dayState.sheriffPk ? '警长PK发言' : '警上发言'}}</view><view class="stage-copy">退水玩家不参与本轮投票。</view><view class="seat-pills"><view wx:for="{{sheriffWithdrawalSeats}}" wx:key="number" class="seat-pill chosen withdraw-pill"><text>{{item.number}}号</text><view class="withdraw-close" data-number="{{item.number}}" catchtap="withdrawSheriffCandidate">×</view></view></view><button class="primary full-action" bindtap="beginSheriffVote">{{dayState.sheriffPk ? 'PK发言结束' : '进入警长投票'}}</button></view>
@@ -75,6 +74,8 @@
       </view>
     </block>
   </block>
+
+  <view wx:if="{{board.winMode === 'manual' && game.status !== 'ended'}}" class="surface-card"><view class="subtitle">玩家自己裁决</view><view class="muted">本局由场上裁决胜负，法官在此记录结果。</view><button class="secondary" bindtap="recordManualWinner">记录胜负并结束本局</button></view>
 
   <view class="game-reference">
     <view class="log-panel"><view class="panel-heading"><view class="subtitle">对局记录</view><text>仅法官可见</text></view><view wx:for="{{game.logs}}" wx:key="time" class="log-item">{{item.text}}</view></view>

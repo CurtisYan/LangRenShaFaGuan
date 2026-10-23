@@ -6,9 +6,9 @@ const { roles } = require('../data/roles')
 const { nightActionDefinitions } = require('../data/night-actions')
 
 assert.equal(Object.keys(roleDocuments).length, 33, '角色资料应完整收录文档中的 33 个专章')
-assert.equal(Object.keys(boardDocuments).length, 19, '板子资料应完整收录文档中的 19 个板子')
-assert.equal(boards.length, 19, '所有已收录板子均应可开局')
-assert.deepEqual(boards.map(board => board.id).sort(), Object.keys(boardDocuments).sort(), '可开局板子与资料库板子必须一一对应')
+assert.equal(Object.keys(boardDocuments).length, 23, '板子资料应完整收录文档中的 22 个预设板子和自定义板子')
+assert.equal(boards.length, 22, '所有已收录板子均应可开局')
+assert.deepEqual(boards.map(board => board.id).sort(), Object.keys(boardDocuments).filter(id => id !== 'custom').sort(), '可开局板子与资料库板子必须一一对应')
 boards.forEach(board => {
   assert.equal(Object.entries(board.roleCounts).reduce((sum, [, count]) => sum + count, 0), board.playerCount, `${board.name}身份数量应等于玩家人数`)
   Object.keys(board.roleCounts).forEach(roleId => assert.ok(roles[roleId], `${board.name}引用的${roleId}必须存在于角色库`))
@@ -19,6 +19,10 @@ assert.equal(roleDocuments.cursedFox.markdown.includes('### Q&A'), true, '咒狐
 assert.equal(roleDocuments.wolf.markdown.includes('### Q&A'), true, '狼人角色说明与 Q&A 不应遗漏')
 assert.equal(boardDocuments.standard12.markdown.includes('出局技能连锁'), true, '标准场完整板子规则不应遗漏')
 assert.equal(boardDocuments.hidden9.markdown.includes('女巫仅首夜可以自救'), true, '9 人暗牌场应收录首夜自救规则')
+assert.equal(boardDocuments.wolfBeautyKnight10.markdown.includes('狼美人因骑士决斗出局'), true, '10人狼美人骑士应收录骑士决斗限制')
+assert.equal(boardDocuments.mirrorMystery10.markdown.includes('两名普通狼人'), true, '10人镜隐迷踪应收录两名普通狼人的首夜顺序')
+assert.equal(boardDocuments.miracleMerchant10.markdown.includes('奇迹商人交易 → 幸运儿行动'), true, '10人奇迹商人应收录交易优先的夜间顺序')
+assert.equal(boardDocuments.miracleMerchant12.markdown.includes('神职技能称号'), false, '资料页不应收录与游戏无关的神职技能称号说明')
 
 let boardPage
 let rolePage

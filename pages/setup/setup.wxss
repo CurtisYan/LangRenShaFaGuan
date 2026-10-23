@@ -1,5 +1,6 @@
 .setup-page { padding-top: 48rpx; }
 .setup-header { margin: 0 4rpx 28rpx; }
+.setup-header .edit-custom-board { width: auto; min-height: 64rpx; justify-content: flex-start; margin: 0 0 20rpx; padding: 8rpx 0; font-size: 26rpx; color: var(--color-accent-strong); }
 .setup-header .eyebrow { margin-bottom: 10rpx; }
 .setup-count { display: flex; justify-content: space-between; margin-top: 20rpx; color: var(--color-ink-secondary); font-size: 24rpx; }
 .progress-track { height: 8rpx; margin-top: 12rpx; overflow: hidden; border-radius: 99rpx; background: var(--color-surface-soft); }

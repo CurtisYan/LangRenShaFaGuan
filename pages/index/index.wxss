@@ -51,7 +51,11 @@
 .pin-option:not(.is-pinned) .pin-icon { opacity: .45; }
 .pin-sheet-actions { display: flex; gap: 14rpx; padding-top: 24rpx; }
 .pin-sheet-actions button { flex: 1; }
-.board-scroll { width: calc(100% + 30rpx); min-height: 0; flex: 1; margin-right: -30rpx; }
+.board-viewport { position: relative; width: calc(100% + 30rpx); min-height: 0; flex: 1; margin-right: -30rpx; overflow: hidden; }
+.board-scroll { width: 100%; height: 100%; }
+.board-fade { position: absolute; left: 0; right: 30rpx; z-index: 1; height: 28rpx; pointer-events: none; }
+.board-fade-top { top: 0; background: linear-gradient(to bottom, rgba(245, 245, 241, .92), rgba(245, 245, 241, 0)); }
+.board-fade-bottom { bottom: 0; background: linear-gradient(to top, rgba(245, 245, 241, .88), rgba(245, 245, 241, 0)); }
 .board-list { box-sizing: border-box; padding-right: 30rpx; border-top: 0; }
 .board-row { display: flex; min-height: 132rpx; align-items: center; justify-content: space-between; gap: 22rpx; padding: 22rpx 4rpx; }
 .board-main { min-width: 0; flex: 1; }
@@ -60,7 +64,7 @@
 .board-summary { overflow: hidden; color: var(--color-ink-muted); font-size: 24rpx; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
 .board-side { flex: 0 0 72rpx; color: var(--color-ink-secondary); font-size: 22rpx; text-align: right; }
 .board-enter { margin-top: 5rpx; color: var(--color-ink-muted); font-size: 30rpx; font-weight: 300; line-height: 1; }
-.rule-entry { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 20rpx; margin: 14rpx -30rpx 0; padding: 22rpx 30rpx; color: #f6f5ed; background: #27332f; }
+.rule-entry { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 20rpx; margin: 14rpx -30rpx 0; padding: 22rpx 30rpx; padding-bottom: max(12rpx, calc(env(safe-area-inset-bottom) - 24rpx)); color: #f6f5ed; background: #27332f; }
 .rule-entry-copy { min-width: 0; }
 .rule-entry .eyebrow { margin-bottom: 5rpx; color: #aeb8b2; }
 .rule-entry .subtitle { margin: 0; color: #f6f5ed; font-size: 30rpx; }

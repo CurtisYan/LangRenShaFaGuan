@@ -19,20 +19,24 @@
     <view><view class="eyebrow">开始新的一局</view><view class="subtitle">选择板子</view></view>
     <view class="board-tools"><button class="pin-manager-button" size="mini" bindtap="openPinManager" aria-label="管理置顶板子"><image class="pin-icon" src="{{pinnedBoardIds.length ? '/assets/icons/star-filled.svg' : '/assets/icons/star-outline.svg'}}"/></button><view class="board-count"><text class="board-count-number">{{boards.length}}</text><text>个板子</text></view></view>
   </view>
+  <view class="board-viewport">
   <scroll-view scroll-y class="board-scroll" enhanced show-scrollbar="true">
     <view class="board-list list-stack">
       <view wx:for="{{boards}}" wx:key="id" class="board-row list-row-base tap-surface" data-id="{{item.id}}" bindtap="chooseBoard">
         <view class="board-main"><view class="board-name"><text>{{item.name}}</text><image wx:if="{{item.pinned}}" class="board-pin-icon" src="/assets/icons/pushpin.svg" aria-label="已置顶"/></view><view class="board-summary">{{item.summary}}</view></view>
-        <view class="board-side"><view>{{item.playerCount}} 人</view><view class="board-enter">›</view></view>
+        <view class="board-side"><view wx:if="{{!item.isCustom}}">{{item.playerCount}} 人</view><view class="board-enter">›</view></view>
       </view>
     </view>
   </scroll-view>
+    <view class="board-fade board-fade-top" aria-hidden="true"></view>
+    <view class="board-fade board-fade-bottom" aria-hidden="true"></view>
+  </view>
 
   <view class="rule-entry tap-surface" bindtap="openRules"><view class="rule-entry-copy"><view class="eyebrow">资料索引</view><view class="subtitle">板子规则 / 角色说明</view><view class="rule-entry-note">完整配置、角色技能与常见问答</view></view><view class="rule-entry-side"><text>查看</text><text class="rule-entry-arrow">→</text></view></view>
   <view wx:if="{{pinManagerOpen}}" class="pin-overlay {{pinManagerClosing ? 'is-closing' : ''}}">
     <view class="pin-backdrop" bindtap="closePinManager" catchtouchmove="stopTap"></view>
     <view class="pin-sheet" role="dialog" aria-modal="true" aria-label="置顶板子" bindanimationend="onPinSheetAnimationEnd">
-      <view class="pin-sheet-heading"><view class="subtitle">置顶板子</view><text>{{pinDraftIds.length}} / 3</text></view>
+      <view class="pin-sheet-heading"><view class="subtitle">置顶板子</view><text>{{pinDraftIds.length}} / 5</text></view>
       <scroll-view scroll-y class="pin-options"><view wx:for="{{pinChoices}}" wx:key="id" class="pin-option tap-surface {{item.pinned ? 'is-pinned' : ''}}" data-id="{{item.id}}" bindtap="togglePinnedBoard" aria-role="checkbox" aria-checked="{{item.pinned}}"><text>{{item.name}}</text><view class="pin-choice-state"><image class="pin-icon" src="{{item.pinned ? '/assets/icons/star-filled.svg' : '/assets/icons/star-outline.svg'}}"/><view class="pin-order-space"><text wx:if="{{item.pinOrder}}" class="pin-order">{{item.pinOrder}}</text></view></view></view></scroll-view>
       <view class="pin-sheet-actions"><button class="secondary" bindtap="closePinManager">取消</button><button class="primary" bindtap="savePinnedBoards">保存</button></view>
     </view>

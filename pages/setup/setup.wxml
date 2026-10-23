@@ -1,5 +1,6 @@
 <view class="page setup-page" wx:if="{{board}}">
   <view class="setup-header">
+    <button wx:if="{{board.id === 'custom'}}" class="edit-custom-board quiet" bindtap="editCustomBoard">← 返回修改板子</button>
     <view class="eyebrow">身份配置</view>
     <view class="title">{{board.name}}</view>
     <view class="setup-count"><text>已录入 {{assignedCount}} / {{board.playerCount}} 人</text><text>{{progressPercent}}%</text></view>
